@@ -1,0 +1,30 @@
+# ---- local toolchain (1.2 GB) : never commit ----
+.toolchain/
+.setup/
+
+# ---- Android / Gradle ----
+local.properties
+.gradle/
+build/
+*/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.hprof
+
+# ---- signing material : never commit ----
+*.jks
+*.keystore
+keystore.properties
+
+# ---- IDE ----
+.idea/
+*.iml
+.kotlin/
+
+# ---- OS junk ----
+Thumbs.db
+.DS_Store

@@ -1,0 +1,8 @@
+* text=auto
+
+# gradlew must keep LF, otherwise it breaks in Git Bash / WSL / CI
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.apk binary
