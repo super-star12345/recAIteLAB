@@ -4,12 +4,12 @@ plugins {
 }
 
 android {
-    namespace = "com.recai.lab"
+    namespace = "com.recaitelab.app"
     compileSdk = 37
     compileSdkMinor = 2
 
     defaultConfig {
-        applicationId = "com.recai.lab"
+        applicationId = "com.recaitelab.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

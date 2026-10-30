@@ -42,7 +42,7 @@ GRADLE_USER_HOME  = F:\AndroidToolchain\gradle-home
 
 | 项 | 值 |
 |---|---|
-| 包名 / applicationId | `com.recai.lab` |
+| 包名 / applicationId | `com.recaitelab.app` |
 | 技术栈 | Kotlin + Jetpack Compose |
 | AGP | 9.4.1（**Kotlin 支持已内置**，不要再加 `org.jetbrains.kotlin.android` 插件） |
 | Compose 编译器插件 | `org.jetbrains.kotlin.plugin.compose` 2.4.21（必需） |
@@ -75,7 +75,7 @@ cd F:\Mr.Peng\code\recAIteLAB
 ## 7. 真机（当前唯一可用设备通道）
 
 - 序列号 `10AF5T05EL001BF`（vivo V2463A / Android 16 / SDK 36 / arm64-v8a）
-- 安装验证：`Success`，启动后 `mCurrentFocus = com.recai.lab/.MainActivity`
+- 安装验证：`Success`，启动后 `mCurrentFocus = com.recaitelab.app/.MainActivity`
 
 ## 8. 仓库状态
 
@@ -85,5 +85,5 @@ cd F:\Mr.Peng\code\recAIteLAB
 ## 9. 未完成 / 待定
 
 - `.setup\` 下有早期下载/解析脚本（已被 gitignore），按需保留或删除
-- 包名 `com.recai.lab`、应用名 `recAIteLAB` 均为临时值，正式立项时需确认
+- 包名已定为 `com.recaitelab.app`、应用名 `recAIteLAB`；XML 主题样式仍为 `Theme.RecAIteLab`（未改名）
 - 模拟器问题未解决（不影响开发，真机可用）

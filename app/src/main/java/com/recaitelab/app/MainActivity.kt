@@ -1,4 +1,4 @@
-package com.recai.lab
+package com.recaitelab.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
