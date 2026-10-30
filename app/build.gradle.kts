@@ -1,7 +1,28 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.isFile) {
+        file.inputStream().use { load(it) }
+    }
+}
+
+fun localProperty(key: String, defaultValue: String): String {
+    val value = localProperties.getProperty(key)?.trim()
+    return if (value.isNullOrEmpty()) defaultValue else value
+}
+
+fun String.asBuildConfigLiteral(): String =
+    "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+val defaultDeepSeekBaseUrl = "https://api.deepseek.com/v1"
+val defaultDeepSeekModel = "deepseek-chat"
 
 android {
     namespace = "com.recaitelab.app"
@@ -12,16 +33,46 @@ android {
         applicationId = "com.recaitelab.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 204
+        versionName = "2.4"
     }
 
     buildTypes {
+        debug {
+            // 调试阶段的 DeepSeek 配置：只从本机 local.properties 注入，绝不提交该文件。
+            buildConfigField(
+                "String",
+                "DEEPSEEK_API_KEY",
+                localProperty("DEEPSEEK_API_KEY", "").asBuildConfigLiteral()
+            )
+            buildConfigField(
+                "String",
+                "DEEPSEEK_BASE_URL",
+                localProperty("DEEPSEEK_BASE_URL", defaultDeepSeekBaseUrl).asBuildConfigLiteral()
+            )
+            buildConfigField(
+                "String",
+                "DEEPSEEK_MODEL",
+                localProperty("DEEPSEEK_MODEL", defaultDeepSeekModel).asBuildConfigLiteral()
+            )
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
+            )
+            // 发布包不注入调试 Key；正式配置后续由 DataStore 提供。
+            buildConfigField("String", "DEEPSEEK_API_KEY", "\"\"")
+            buildConfigField(
+                "String",
+                "DEEPSEEK_BASE_URL",
+                defaultDeepSeekBaseUrl.asBuildConfigLiteral()
+            )
+            buildConfigField(
+                "String",
+                "DEEPSEEK_MODEL",
+                defaultDeepSeekModel.asBuildConfigLiteral()
             )
         }
     }
@@ -33,6 +84,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -41,4 +93,12 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    debugImplementation("androidx.compose.ui:ui-tooling")
 }
