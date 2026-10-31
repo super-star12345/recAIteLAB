@@ -1,5 +1,7 @@
 package com.recaitelab.app.ui.chat
 
+import java.util.UUID
+
 /**
  * 聊天页的完整界面状态。
  *
@@ -7,12 +9,27 @@ package com.recaitelab.app.ui.chat
  * @property inputText 输入框内容
  * @property isGenerating 是否正在生成（用于禁用发送 / 切换为停止按钮）
  * @property errorMessage 最近一次失败提示，成功发起新请求时清空
+ * @property providers 模型选择器数据，按 Provider 分组，不含 apiKey
+ * @property activeProviderId 当前激活 Provider
+ * @property activeProviderName 当前激活 Provider 的显示名
+ * @property activeModel 当前选中的模型；未选择时为 null
  */
 data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
     val inputText: String = "",
     val isGenerating: Boolean = false,
     val errorMessage: String? = null,
+    val providers: List<ProviderModels> = emptyList(),
+    val activeProviderId: UUID? = null,
+    val activeProviderName: String? = null,
+    val activeModel: String? = null,
+)
+
+/** 模型选择器中的 Provider 分组；刻意不包含 apiKey。 */
+data class ProviderModels(
+    val id: UUID,
+    val name: String,
+    val models: List<String>,
 )
 
 /**

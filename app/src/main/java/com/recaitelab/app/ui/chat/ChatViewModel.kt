@@ -5,13 +5,16 @@ import androidx.lifecycle.viewModelScope
 import com.recaitelab.app.data.remote.ApiException
 import com.recaitelab.app.data.repository.ChatConfigurationException
 import com.recaitelab.app.data.repository.ChatRepository
+import com.recaitelab.app.data.repository.ProviderRepository
 import java.io.IOException
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -21,9 +24,11 @@ import kotlinx.coroutines.launch
  * 只依赖 AndroidX ViewModel 与协程，不引用任何 Compose 类型。
  *
  * @param repository 会话仓库；阶段 3 换成 Room 实现后构造方式不变
+ * @param providerRepository 提供当前激活 Provider / 模型，以及模型选择器的数据
  */
 class ChatViewModel(
     private val repository: ChatRepository,
+    private val providerRepository: ProviderRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -36,9 +41,52 @@ class ChatViewModel(
     /** 每次 send / retry 递增；用于丢弃停止、清空后仍在回调链上的迟到片段。 */
     private var requestId: Long = 0L
 
+    init {
+        viewModelScope.launch {
+            combine(
+                providerRepository.providers,
+                providerRepository.activeProvider,
+            ) { providers, active ->
+                ChatProviderSnapshot(
+                    providers = providers.map {
+                        ProviderModels(id = it.id, name = it.name, models = it.models)
+                    },
+                    activeProviderId = active?.id,
+                    activeProviderName = active?.name,
+                    activeModel = active?.selectedModel,
+                )
+            }.collect { snapshot ->
+                _uiState.update {
+                    it.copy(
+                        providers = snapshot.providers,
+                        activeProviderId = snapshot.activeProviderId,
+                        activeProviderName = snapshot.activeProviderName,
+                        activeModel = snapshot.activeModel,
+                    )
+                }
+            }
+        }
+    }
+
     /** 输入框内容变化。 */
     fun onInputChange(text: String) {
         _uiState.update { it.copy(inputText = text) }
+    }
+
+    /** 切换 Provider 与模型；只影响之后发送的消息，进行中的流不受影响。 */
+    fun selectModel(providerId: UUID, model: String) {
+        viewModelScope.launch {
+            try {
+                providerRepository.setSelectedModel(providerId, model)
+                providerRepository.setActiveProvider(providerId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "切换模型失败：${e.message ?: "未知错误"}")
+                }
+            }
+        }
     }
 
     /**
@@ -97,7 +145,14 @@ class ChatViewModel(
         generateJob?.cancel()
         generateJob = null
         repository.clearConversation()
-        _uiState.value = ChatUiState()
+        _uiState.update { state ->
+            ChatUiState(
+                providers = state.providers,
+                activeProviderId = state.activeProviderId,
+                activeProviderName = state.activeProviderName,
+                activeModel = state.activeModel,
+            )
+        }
     }
 
     private fun launchGeneration(id: Long, source: suspend () -> Flow<String>) {
@@ -162,4 +217,11 @@ class ChatViewModel(
         is IOException -> "网络异常，请检查连接"
         else -> "生成失败，请重试"
     }
+
+    private data class ChatProviderSnapshot(
+        val providers: List<ProviderModels>,
+        val activeProviderId: UUID?,
+        val activeProviderName: String?,
+        val activeModel: String?,
+    )
 }

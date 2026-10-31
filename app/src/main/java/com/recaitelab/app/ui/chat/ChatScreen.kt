@@ -1,5 +1,6 @@
 package com.recaitelab.app.ui.chat
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,12 +14,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,25 +31,37 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.recaitelab.app.R
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
+import java.util.UUID
+import kotlinx.coroutines.launch
 
 /**
  * 单页聊天界面（无状态）：只接收 [ChatUiState] 与事件回调。
@@ -60,13 +76,25 @@ fun ChatScreen(
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onOpenSettings: () -> Unit,
+    onModelSelected: (UUID, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    var showModelPicker by rememberSaveable { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(state.errorMessage) {
         val message = state.errorMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
+    }
+
+    val providerName = state.activeProviderName
+    val modelName = state.activeModel
+    val modelLabel = when {
+        providerName == null -> stringResource(R.string.chat_no_provider)
+        modelName == null -> "$providerName / ${stringResource(R.string.chat_no_model)}"
+        else -> "$providerName / $modelName"
     }
 
     Scaffold(
@@ -75,7 +103,37 @@ fun ChatScreen(
             .imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text(text = stringResource(R.string.app_name)) },
+                title = {
+                    Column(
+                        modifier = Modifier
+                            .clip(MaterialTheme.shapes.small)
+                            .clickable(
+                                onClickLabel = stringResource(R.string.chat_model_picker_title),
+                                onClick = { showModelPicker = true },
+                            )
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = modelLabel,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Icon(
+                                imageVector = Icons.Filled.ArrowDropDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
                         Icon(
@@ -111,6 +169,30 @@ fun ChatScreen(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
+        }
+    }
+
+    if (showModelPicker) {
+        ModalBottomSheet(
+            onDismissRequest = { showModelPicker = false },
+            sheetState = sheetState,
+        ) {
+            ModelPickerSheet(
+                providers = state.providers,
+                activeProviderId = state.activeProviderId,
+                activeModel = state.activeModel,
+                onSelect = { providerId, model ->
+                    onModelSelected(providerId, model)
+                    scope.launch {
+                        sheetState.hide()
+                        showModelPicker = false
+                    }
+                },
+                onGoSettings = {
+                    showModelPicker = false
+                    onOpenSettings()
+                },
+            )
         }
     }
 }
@@ -263,9 +345,134 @@ private fun ChatInputBar(
     }
 }
 
+@Composable
+private fun ModelPickerSheet(
+    providers: List<ProviderModels>,
+    activeProviderId: UUID?,
+    activeModel: String?,
+    onSelect: (UUID, String) -> Unit,
+    onGoSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val hasModels = providers.any { it.models.isNotEmpty() }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 24.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.chat_model_picker_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(vertical = 12.dp),
+        )
+        if (!hasModels) {
+            EmptyModelPicker(onGoSettings = onGoSettings)
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = 8.dp),
+            ) {
+                providers.forEach { provider ->
+                    item(key = "provider-${provider.id}") {
+                        Text(
+                            text = provider.name,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                        )
+                    }
+                    if (provider.models.isEmpty()) {
+                        item(key = "empty-${provider.id}") {
+                            Text(
+                                text = stringResource(R.string.chat_model_picker_no_models),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            )
+                        }
+                    } else {
+                        items(
+                            items = provider.models,
+                            key = { model -> "${provider.id}-$model" },
+                        ) { model ->
+                            ModelRow(
+                                model = model,
+                                selected = provider.id == activeProviderId && model == activeModel,
+                                onClick = { onSelect(provider.id, model) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyModelPicker(
+    onGoSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.chat_model_picker_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(onClick = onGoSettings) {
+            Text(text = stringResource(R.string.chat_model_picker_go_settings))
+        }
+    }
+}
+
+@Composable
+private fun ModelRow(
+    model: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = model,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = stringResource(R.string.chat_model_selected),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun ChatScreenPreview() {
+    val providerId = UUID.fromString("00000000-0000-0000-0000-000000000001")
     RecAIteLABTheme {
         ChatScreen(
             state = ChatUiState(
@@ -281,11 +488,22 @@ private fun ChatScreenPreview() {
                     ),
                 ),
                 isGenerating = true,
+                providers = listOf(
+                    ProviderModels(
+                        id = providerId,
+                        name = "DeepSeek",
+                        models = listOf("deepseek-chat", "deepseek-reasoner"),
+                    ),
+                ),
+                activeProviderId = providerId,
+                activeProviderName = "DeepSeek",
+                activeModel = "deepseek-chat",
             ),
             onInputChange = {},
             onSend = {},
             onStop = {},
             onOpenSettings = {},
+            onModelSelected = { _, _ -> },
         )
     }
 }

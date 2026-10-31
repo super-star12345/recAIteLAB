@@ -6,6 +6,13 @@
     <string name="chat_send">发送</string>
     <string name="chat_stop">停止生成</string>
     <string name="chat_open_settings">打开设置</string>
+    <string name="chat_no_provider">未配置 Provider</string>
+    <string name="chat_no_model">未选择模型</string>
+    <string name="chat_model_picker_title">选择模型</string>
+    <string name="chat_model_picker_empty">请先在设置中配置 Provider</string>
+    <string name="chat_model_picker_go_settings">去设置</string>
+    <string name="chat_model_picker_no_models">该 Provider 还没有模型</string>
+    <string name="chat_model_selected">当前模型</string>
 
     <string name="settings_title">设置</string>
     <string name="settings_back">返回</string>

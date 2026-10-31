@@ -63,6 +63,7 @@ private fun ChatRoute(
         onSend = viewModel::send,
         onStop = viewModel::stop,
         onOpenSettings = onOpenSettings,
+        onModelSelected = viewModel::selectModel,
     )
 }
 
@@ -86,7 +87,12 @@ private fun SettingsRoute(
 }
 
 private val chatViewModelFactory = viewModelFactory {
-    initializer { ChatViewModel(AppContainer.createChatRepository()) }
+    initializer {
+        ChatViewModel(
+            repository = AppContainer.createChatRepository(),
+            providerRepository = AppContainer.providerRepository,
+        )
+    }
 }
 
 private val settingsViewModelFactory = viewModelFactory {
