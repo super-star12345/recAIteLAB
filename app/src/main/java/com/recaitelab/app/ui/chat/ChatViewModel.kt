@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
  *
  * 只依赖 AndroidX ViewModel 与协程，不引用任何 Compose 类型。
  *
- * @param repository 会话仓库；阶段 3 换成 Room 实现后构造方式不变
+ * @param repository 会话仓库；历史消息从 Room 恢复，流式回复仍在内存增量渲染
  * @param providerRepository 提供当前激活 Provider / 模型，以及模型选择器的数据
  */
 class ChatViewModel(
@@ -31,17 +31,57 @@ class ChatViewModel(
     private val providerRepository: ProviderRepository,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ChatUiState())
+    private val _uiState = MutableStateFlow(ChatUiState(isLoadingHistory = true))
 
     /** 界面唯一数据源；Composable 只读，不暴露可变类型。 */
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     private var generateJob: Job? = null
 
+    /** 首次进入时加载历史的任务；clear() 会取消它，避免旧快照覆盖刚清空的 UI。 */
+    private var historyLoadJob: Job? = null
+
+    /** 当前展示的会话 id；用于历史记录删除当前会话时重置 UI。 */
+    private var currentConversationId: Long? = null
+
     /** 每次 send / retry 递增；用于丢弃停止、清空后仍在回调链上的迟到片段。 */
     private var requestId: Long = 0L
 
     init {
+        historyLoadJob = viewModelScope.launch {
+            try {
+                val history = repository.loadConversation()
+                currentConversationId = repository.activeConversationId.value
+                _uiState.update { state ->
+                    state.copy(
+                        messages = history.map { message ->
+                            UiMessage(role = message.role, content = message.content)
+                        },
+                        isLoadingHistory = false,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isLoadingHistory = false,
+                        errorMessage = "加载历史消息失败：${e.message ?: "未知错误"}",
+                    )
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            repository.activeConversationId.collect { conversationId ->
+                // 删除会话时 active 会变 null；此时保留 currentConversationId，
+                // 等 onConversationDeleted(id) 做精确重置。
+                if (conversationId != null) {
+                    currentConversationId = conversationId
+                }
+            }
+        }
+
         viewModelScope.launch {
             combine(
                 providerRepository.providers,
@@ -90,6 +130,114 @@ class ChatViewModel(
     }
 
     /**
+     * 打开历史记录中的指定会话：取消当前生成，加载该会话消息并替换 UI。
+     * 导航到 AI 对话 Tab 由调用方负责。
+     */
+    fun openConversation(conversationId: Long) {
+        requestId++
+        historyLoadJob?.cancel()
+        historyLoadJob = null
+        generateJob?.cancel()
+        generateJob = null
+        currentConversationId = conversationId
+        _uiState.update { state ->
+            state.copy(
+                messages = emptyList(),
+                inputText = "",
+                isLoadingHistory = true,
+                isGenerating = false,
+                errorMessage = null,
+            )
+        }
+        historyLoadJob = viewModelScope.launch {
+            try {
+                val messages = repository.openConversation(conversationId)
+                if (messages == null) {
+                    currentConversationId = null
+                    _uiState.update {
+                        it.copy(
+                            isLoadingHistory = false,
+                            errorMessage = "会话不存在或已被删除",
+                        )
+                    }
+                } else {
+                    _uiState.update { state ->
+                        state.copy(
+                            messages = messages.map { message ->
+                                UiMessage(role = message.role, content = message.content)
+                            },
+                            isLoadingHistory = false,
+                        )
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isLoadingHistory = false,
+                        errorMessage = "加载会话失败：${e.message ?: "未知错误"}",
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * 开始新上下文：不删除任何历史会话，只清空当前指针；
+     * 下一次发送时由 ConversationRepository 创建新会话。
+     */
+    fun startNewConversation() {
+        requestId++
+        historyLoadJob?.cancel()
+        historyLoadJob = null
+        generateJob?.cancel()
+        generateJob = null
+        currentConversationId = null
+        _uiState.update { state ->
+            ChatUiState(
+                providers = state.providers,
+                activeProviderId = state.activeProviderId,
+                activeProviderName = state.activeProviderName,
+                activeModel = state.activeModel,
+                isLoadingHistory = true,
+            )
+        }
+        viewModelScope.launch {
+            try {
+                repository.startNewConversation()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "新建会话失败：${e.message ?: "未知错误"}")
+                }
+            } finally {
+                _uiState.update { it.copy(isLoadingHistory = false) }
+            }
+        }
+    }
+
+    /** 历史记录删除了当前会话时，停止生成并清空聊天页，避免继续向已删除会话写入。 */
+    fun onConversationDeleted(conversationId: Long) {
+        if (currentConversationId != conversationId) return
+        requestId++
+        historyLoadJob?.cancel()
+        historyLoadJob = null
+        generateJob?.cancel()
+        generateJob = null
+        currentConversationId = null
+        _uiState.update { state ->
+            ChatUiState(
+                providers = state.providers,
+                activeProviderId = state.activeProviderId,
+                activeProviderName = state.activeProviderName,
+                activeModel = state.activeModel,
+            )
+        }
+    }
+
+    /**
      * 发送用户消息并流式接收回复。
      *
      * 先同步追加 user 消息与 assistant 占位（`isStreaming = true`），
@@ -97,12 +245,13 @@ class ChatViewModel(
      */
     fun send(prompt: String) {
         val text = prompt.trim()
-        if (text.isEmpty() || _uiState.value.isGenerating) return
+        val state = _uiState.value
+        if (text.isEmpty() || state.isGenerating || state.isLoadingHistory) return
 
         val id = ++requestId
-        _uiState.update { state ->
-            state.copy(
-                messages = state.messages +
+        _uiState.update { current ->
+            current.copy(
+                messages = current.messages +
                     UiMessage(role = UiMessage.ROLE_USER, content = text) +
                     UiMessage(role = UiMessage.ROLE_ASSISTANT, content = "", isStreaming = true),
                 inputText = "",
@@ -125,7 +274,8 @@ class ChatViewModel(
     /** 重新生成最后一条回复：替换末尾 assistant 消息后再次请求。 */
     fun retry() {
         val state = _uiState.value
-        if (state.isGenerating || state.messages.none { it.role == UiMessage.ROLE_USER }) return
+        if (state.isGenerating || state.isLoadingHistory) return
+        if (state.messages.none { it.role == UiMessage.ROLE_USER }) return
 
         val id = ++requestId
         _uiState.update { current ->
@@ -139,19 +289,35 @@ class ChatViewModel(
         launchGeneration(id) { repository.regenerate() }
     }
 
-    /** 清空会话：取消进行中的生成，并同时清空 UI 与仓库上下文。 */
+    /** 清空会话：取消进行中的生成，清除 Room 中的当前会话，并重置 UI。 */
     fun clear() {
         requestId++
+        historyLoadJob?.cancel()
+        historyLoadJob = null
         generateJob?.cancel()
         generateJob = null
-        repository.clearConversation()
+        currentConversationId = null
         _uiState.update { state ->
             ChatUiState(
                 providers = state.providers,
                 activeProviderId = state.activeProviderId,
                 activeProviderName = state.activeProviderName,
                 activeModel = state.activeModel,
+                isLoadingHistory = true,
             )
+        }
+        viewModelScope.launch {
+            try {
+                repository.clearConversation()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "清空会话失败：${e.message ?: "未知错误"}")
+                }
+            } finally {
+                _uiState.update { it.copy(isLoadingHistory = false) }
+            }
         }
     }
 

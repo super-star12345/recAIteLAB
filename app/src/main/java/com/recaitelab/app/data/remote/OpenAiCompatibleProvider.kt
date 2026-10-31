@@ -52,7 +52,7 @@ class OpenAiCompatibleProvider(
     override suspend fun streamChat(
         messages: List<ChatMessage>,
         model: String,
-        temperature: Float,
+        temperature: Float?,
     ): Flow<String> = callbackFlow {
         val payload = openAiJson.encodeToString(
             ChatCompletionRequest(

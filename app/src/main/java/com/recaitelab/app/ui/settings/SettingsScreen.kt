@@ -70,6 +70,7 @@ fun SettingsScreen(
     state: SettingsUiState,
     onBack: () -> Unit,
     onEvent: (SettingsEvent) -> Unit,
+    showBackButton: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -90,11 +91,13 @@ fun SettingsScreen(
                 TopAppBar(
                     title = { Text(text = stringResource(R.string.settings_title)) },
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.settings_back),
-                            )
+                        if (showBackButton) {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = stringResource(R.string.settings_back),
+                                )
+                            }
                         }
                     },
                     actions = {

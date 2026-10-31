@@ -18,12 +18,12 @@ interface ChatProvider {
      *
      * @param messages 多轮上下文（含 system），按时间顺序排列
      * @param model 模型 id，例如 `gpt-4o-mini`
-     * @param temperature 采样温度，取值 0.0–2.0
+     * @param temperature 采样温度；null 表示请求体不包含该字段，由服务端使用默认值
      */
     suspend fun streamChat(
         messages: List<ChatMessage>,
         model: String,
-        temperature: Float,
+        temperature: Float? = null,
     ): Flow<String>
 
     /**

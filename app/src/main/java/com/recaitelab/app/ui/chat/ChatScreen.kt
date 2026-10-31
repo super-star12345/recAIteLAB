@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -23,13 +22,11 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -99,8 +96,7 @@ fun ChatScreen(
 
     Scaffold(
         modifier = modifier
-            .fillMaxSize()
-            .imePadding(),
+            .fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = {
@@ -134,14 +130,6 @@ fun ChatScreen(
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = stringResource(R.string.chat_open_settings),
-                        )
-                    }
-                },
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -149,10 +137,11 @@ fun ChatScreen(
             ChatInputBar(
                 inputText = state.inputText,
                 isGenerating = state.isGenerating,
+                isLoadingHistory = state.isLoadingHistory,
                 onInputChange = onInputChange,
                 onSend = { onSend(state.inputText) },
                 onStop = onStop,
-                modifier = Modifier.navigationBarsPadding(),
+                modifier = Modifier.imePadding(),
             )
         },
     ) { innerPadding ->
@@ -161,13 +150,21 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (state.messages.isEmpty()) {
-                EmptyState(modifier = Modifier.align(Alignment.Center))
-            } else {
-                MessageList(
-                    messages = state.messages,
-                    modifier = Modifier.fillMaxSize(),
-                )
+            when {
+                state.isLoadingHistory -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                }
+
+                state.messages.isEmpty() -> {
+                    EmptyState(modifier = Modifier.align(Alignment.Center))
+                }
+
+                else -> {
+                    MessageList(
+                        messages = state.messages,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
     }
@@ -298,6 +295,7 @@ private fun MessageBubble(
 private fun ChatInputBar(
     inputText: String,
     isGenerating: Boolean,
+    isLoadingHistory: Boolean,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
@@ -319,7 +317,7 @@ private fun ChatInputBar(
                 value = inputText,
                 onValueChange = onInputChange,
                 modifier = Modifier.weight(1f),
-                enabled = !isGenerating,
+                enabled = !isGenerating && !isLoadingHistory,
                 placeholder = { Text(text = stringResource(R.string.chat_input_hint)) },
                 maxLines = 5,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -327,7 +325,7 @@ private fun ChatInputBar(
             )
             FilledIconButton(
                 onClick = { if (isGenerating) onStop() else onSend() },
-                enabled = isGenerating || inputText.isNotBlank(),
+                enabled = !isLoadingHistory && (isGenerating || inputText.isNotBlank()),
                 modifier = Modifier.size(48.dp),
             ) {
                 Icon(

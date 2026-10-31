@@ -7,6 +7,7 @@ import java.util.UUID
  *
  * @property messages 当前会话的消息列表，按时间顺序
  * @property inputText 输入框内容
+ * @property isLoadingHistory 是否正在从 Room 恢复上次会话的历史消息
  * @property isGenerating 是否正在生成（用于禁用发送 / 切换为停止按钮）
  * @property errorMessage 最近一次失败提示，成功发起新请求时清空
  * @property providers 模型选择器数据，按 Provider 分组，不含 apiKey
@@ -17,6 +18,7 @@ import java.util.UUID
 data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
     val inputText: String = "",
+    val isLoadingHistory: Boolean = false,
     val isGenerating: Boolean = false,
     val errorMessage: String? = null,
     val providers: List<ProviderModels> = emptyList(),
