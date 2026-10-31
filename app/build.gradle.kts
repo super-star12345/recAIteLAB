@@ -34,8 +34,8 @@ android {
         applicationId = "com.recaitelab.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 352
-        versionName = "3.5.2"
+        versionCode = 451
+        versionName = "4.5.1"
     }
 
     buildTypes {
