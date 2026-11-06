@@ -41,9 +41,12 @@ object AppContainer {
     private var initialized: Boolean = false
 
     private lateinit var database: RecAIteLabDatabase
-    private lateinit var preferences: UserPreferencesRepository
     private lateinit var apiKeyStore: ApiKeyStore
     private lateinit var applicationScope: CoroutineScope
+
+    /** DataStore 偏好仓库：Provider 选择、会话恢复与主题设置共用。 */
+    lateinit var userPreferencesRepository: UserPreferencesRepository
+        private set
 
     /** 进程内共享的 Provider 配置仓库；所有 UI 都通过它管理 Provider。 */
     lateinit var providerRepository: ProviderRepository
@@ -67,19 +70,19 @@ object AppContainer {
             if (initialized) return
             val appContext = context.applicationContext
             database = RecAIteLabDatabase.getInstance(appContext)
-            preferences = UserPreferencesRepository(appContext)
+            userPreferencesRepository = UserPreferencesRepository(appContext)
             apiKeyStore = ApiKeyStore(appContext)
             applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             providerRepository = ProviderRepository(
                 providerDao = database.providerDao(),
                 apiKeyStore = apiKeyStore,
-                preferences = preferences,
+                preferences = userPreferencesRepository,
                 scope = applicationScope,
             )
             conversationRepository = ConversationRepository(
                 conversationDao = database.conversationDao(),
                 messageDao = database.messageDao(),
-                preferences = preferences,
+                preferences = userPreferencesRepository,
             )
             knowledgeRepository = KnowledgeRepository(database.knowledgeEntryDao())
             knowledgeOrganizer = KnowledgeOrganizer(
@@ -98,15 +101,15 @@ object AppContainer {
     private fun seedDefaultProviderIfNeeded() {
         applicationScope.launch {
             try {
-                if (preferences.hasSeededDefaultProvider.first()) return@launch
+                if (userPreferencesRepository.hasSeededDefaultProvider.first()) return@launch
                 if (database.providerDao().count() > 0) {
-                    preferences.markDefaultProviderSeeded()
+                    userPreferencesRepository.markDefaultProviderSeeded()
                     return@launch
                 }
                 // release 包不注入 Key，跳过播种，等用户在设置页手动添加。
                 if (BuildConfig.DEEPSEEK_API_KEY.isBlank()) return@launch
                 providerRepository.addProvider(createDefaultProvider())
-                preferences.markDefaultProviderSeeded()
+                userPreferencesRepository.markDefaultProviderSeeded()
             } catch (_: Exception) {
                 // 播种失败（如 Keystore 不可用）不阻塞启动；用户仍可在设置页手动添加 Provider。
             }

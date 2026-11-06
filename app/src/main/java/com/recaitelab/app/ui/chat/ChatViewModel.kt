@@ -2,11 +2,10 @@ package com.recaitelab.app.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.recaitelab.app.data.remote.ApiException
-import com.recaitelab.app.data.repository.ChatConfigurationException
 import com.recaitelab.app.data.repository.ChatRepository
+import com.recaitelab.app.data.repository.ErrorMapper
 import com.recaitelab.app.data.repository.ProviderRepository
-import java.io.IOException
+import com.recaitelab.app.domain.model.UserError
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -66,7 +65,7 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         isLoadingHistory = false,
-                        errorMessage = "加载历史消息失败：${e.message ?: "未知错误"}",
+                        error = ErrorMapper.map(TAG, e),
                     )
                 }
             }
@@ -123,7 +122,7 @@ class ChatViewModel(
                 throw e
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(errorMessage = "切换模型失败：${e.message ?: "未知错误"}")
+                    it.copy(error = ErrorMapper.map(TAG, e), canRetry = false)
                 }
             }
         }
@@ -146,7 +145,8 @@ class ChatViewModel(
                 inputText = "",
                 isLoadingHistory = true,
                 isGenerating = false,
-                errorMessage = null,
+                error = null,
+                canRetry = false,
             )
         }
         historyLoadJob = viewModelScope.launch {
@@ -157,7 +157,7 @@ class ChatViewModel(
                     _uiState.update {
                         it.copy(
                             isLoadingHistory = false,
-                            errorMessage = "会话不存在或已被删除",
+                            error = UserError.NOT_FOUND,
                         )
                     }
                 } else {
@@ -176,7 +176,7 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         isLoadingHistory = false,
-                        errorMessage = "加载会话失败：${e.message ?: "未知错误"}",
+                        error = ErrorMapper.map(TAG, e),
                     )
                 }
             }
@@ -210,7 +210,7 @@ class ChatViewModel(
                 throw e
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(errorMessage = "新建会话失败：${e.message ?: "未知错误"}")
+                    it.copy(error = ErrorMapper.map(TAG, e), canRetry = false)
                 }
             } finally {
                 _uiState.update { it.copy(isLoadingHistory = false) }
@@ -256,19 +256,25 @@ class ChatViewModel(
                     UiMessage(role = UiMessage.ROLE_ASSISTANT, content = "", isStreaming = true),
                 inputText = "",
                 isGenerating = true,
-                errorMessage = null,
+                error = null,
+                canRetry = false,
             )
         }
-        launchGeneration(id) { repository.send(text) }
+        launchGeneration(id, restorePrompt = text) { repository.send(text) }
     }
 
-    /** 停止生成：取消当前任务，保留已输出内容并结束流式标记。 */
+    /** 停止生成：取消当前任务，保留已输出内容并结束流式标记；不视为错误。 */
     fun stop() {
         if (!_uiState.value.isGenerating) return
         requestId++
         generateJob?.cancel()
         generateJob = null
         finishGeneration()
+    }
+
+    /** 清空本页的 Snackbar 错误提示。 */
+    fun onErrorShown() {
+        _uiState.update { it.copy(error = null, canRetry = false) }
     }
 
     /** 重新生成最后一条回复：替换末尾 assistant 消息后再次请求。 */
@@ -283,10 +289,11 @@ class ChatViewModel(
             current.copy(
                 messages = kept + UiMessage(role = UiMessage.ROLE_ASSISTANT, content = "", isStreaming = true),
                 isGenerating = true,
-                errorMessage = null,
+                error = null,
+                canRetry = false,
             )
         }
-        launchGeneration(id) { repository.regenerate() }
+        launchGeneration(id, restorePrompt = null) { repository.regenerate() }
     }
 
     /** 清空会话：取消进行中的生成，清除 Room 中的当前会话，并重置 UI。 */
@@ -313,7 +320,7 @@ class ChatViewModel(
                 throw e
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(errorMessage = "清空会话失败：${e.message ?: "未知错误"}")
+                    it.copy(error = ErrorMapper.map(TAG, e), canRetry = false)
                 }
             } finally {
                 _uiState.update { it.copy(isLoadingHistory = false) }
@@ -321,7 +328,17 @@ class ChatViewModel(
         }
     }
 
-    private fun launchGeneration(id: Long, source: suspend () -> Flow<String>) {
+    /**
+     * 收集流式回复。
+     *
+     * @param restorePrompt 发送路径传入用户输入；配置错误导致消息还没落库时，用它回滚 UI
+     *   并把输入内容还原到输入框，避免用户重输。重试路径传 null。
+     */
+    private fun launchGeneration(
+        id: Long,
+        restorePrompt: String?,
+        source: suspend () -> Flow<String>,
+    ) {
         generateJob = viewModelScope.launch {
             try {
                 source().collect { delta -> appendDelta(id, delta) }
@@ -329,7 +346,26 @@ class ChatViewModel(
                 throw e
             } catch (e: Exception) {
                 if (id == requestId) {
-                    _uiState.update { it.copy(errorMessage = e.toUserMessage()) }
+                    val error = ErrorMapper.map(TAG, e)
+                    // 配置错误发生在写 user 消息之前，聊天页里只是占位，回滚并还原输入。
+                    val rollbackPrompt = restorePrompt?.takeIf { error == UserError.CONFIGURATION }
+                    _uiState.update { state ->
+                        state.copy(
+                            messages = if (rollbackPrompt != null) {
+                                state.messages.rollbackFailedSend(rollbackPrompt)
+                            } else {
+                                state.messages
+                            },
+                            inputText = if (rollbackPrompt != null) {
+                                state.inputText.ifBlank { rollbackPrompt }
+                            } else {
+                                state.inputText
+                            },
+                            error = error,
+                            // 配置类错误重试也不会成功，先去设置页补齐配置。
+                            canRetry = error != UserError.CONFIGURATION,
+                        )
+                    }
                 }
             } finally {
                 if (id == requestId) {
@@ -337,6 +373,20 @@ class ChatViewModel(
                 }
             }
         }
+    }
+
+    /** 回滚一次未落库的发送：空 assistant 占位 + 本次 user 消息。 */
+    private fun List<UiMessage>.rollbackFailedSend(prompt: String): List<UiMessage> {
+        var result = this
+        val last = result.lastOrNull()
+        if (last != null && last.role == UiMessage.ROLE_ASSISTANT && last.content.isEmpty()) {
+            result = result.dropLast(1)
+        }
+        val lastUser = result.lastOrNull()
+        if (lastUser != null && lastUser.role == UiMessage.ROLE_USER && lastUser.content == prompt) {
+            result = result.dropLast(1)
+        }
+        return result
     }
 
     private fun appendDelta(id: Long, delta: String) {
@@ -371,23 +421,14 @@ class ChatViewModel(
         }
     }
 
-    private fun Throwable.toUserMessage(): String = when (this) {
-        is ChatConfigurationException -> message ?: "对话配置不完整"
-        is ApiException -> when (statusCode) {
-            401, 403 -> "API Key 无效或无权限"
-            404 -> "接口地址或模型不存在"
-            429 -> "请求过于频繁，请稍后重试"
-            in 500..599 -> "服务端错误（$statusCode）"
-            else -> serverMessage.ifBlank { "请求失败（$statusCode）" }
-        }
-        is IOException -> "网络异常，请检查连接"
-        else -> "生成失败，请重试"
-    }
-
     private data class ChatProviderSnapshot(
         val providers: List<ProviderModels>,
         val activeProviderId: UUID?,
         val activeProviderName: String?,
         val activeModel: String?,
     )
+
+    private companion object {
+        const val TAG: String = "ChatViewModel"
+    }
 }

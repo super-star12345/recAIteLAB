@@ -54,6 +54,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.recaitelab.app.R
+import com.recaitelab.app.ui.common.message
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -87,10 +88,15 @@ fun HistoryScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val organizeSuccessMessage = stringResource(R.string.knowledge_organize_success)
     val organizeViewAction = stringResource(R.string.knowledge_organize_view)
+    val error = state.error
+    val errorMessage = when (error) {
+        null -> null
+        else -> error.message()
+    }
 
-    LaunchedEffect(state.errorMessage) {
-        val message = state.errorMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
+    LaunchedEffect(error) {
+        errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(errorMessage)
         onErrorShown()
     }
 

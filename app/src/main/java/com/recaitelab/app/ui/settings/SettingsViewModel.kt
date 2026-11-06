@@ -1,11 +1,15 @@
 package com.recaitelab.app.ui.settings
 
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.recaitelab.app.data.local.preferences.UserPreferencesRepository
 import com.recaitelab.app.data.remote.ApiException
 import com.recaitelab.app.data.remote.ChatProvider
 import com.recaitelab.app.data.remote.createChatProvider
 import com.recaitelab.app.data.repository.ProviderRepository
+import com.recaitelab.app.domain.model.AppColorTheme
+import com.recaitelab.app.domain.model.AppearanceMode
 import com.recaitelab.app.domain.model.ProviderConfig
 import com.recaitelab.app.domain.model.ProviderType
 import java.io.IOException
@@ -30,6 +34,7 @@ import kotlinx.coroutines.launch
  */
 class SettingsViewModel(
     private val providerRepository: ProviderRepository,
+    private val preferences: UserPreferencesRepository,
     private val providerFactory: (ProviderConfig) -> ChatProvider = ::createChatProvider,
 ) : ViewModel() {
 
@@ -37,6 +42,7 @@ class SettingsViewModel(
         SettingsUiState(
             providers = providerRepository.providers.value.map { it.toUiModel() },
             activeProviderId = providerRepository.activeProvider.value?.id,
+            isDynamicColorSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
         ),
     )
 
@@ -55,6 +61,24 @@ class SettingsViewModel(
             }.collect { (providers, activeProviderId) ->
                 _uiState.update {
                     it.copy(providers = providers, activeProviderId = activeProviderId)
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            combine(
+                preferences.appearanceMode,
+                preferences.colorTheme,
+                preferences.dynamicColorEnabled,
+            ) { mode, theme, dynamicColor ->
+                Triple(mode, theme, dynamicColor)
+            }.collect { (mode, theme, dynamicColor) ->
+                _uiState.update {
+                    it.copy(
+                        appearanceMode = mode,
+                        colorTheme = theme,
+                        dynamicColorEnabled = dynamicColor,
+                    )
                 }
             }
         }
@@ -88,6 +112,9 @@ class SettingsViewModel(
             SettingsEvent.CancelForm -> cancelForm()
             SettingsEvent.ConfirmDelete -> confirmDelete()
             SettingsEvent.CancelDelete -> _uiState.update { it.copy(pendingDelete = null) }
+            is SettingsEvent.AppearanceModeChange -> setAppearanceMode(event.mode)
+            is SettingsEvent.ColorThemeChange -> setColorTheme(event.theme)
+            is SettingsEvent.DynamicColorChange -> setDynamicColorEnabled(event.enabled)
             SettingsEvent.ErrorShown -> _uiState.update { it.copy(errorMessage = null) }
         }
     }
@@ -361,6 +388,40 @@ class SettingsViewModel(
                         pendingDelete = null,
                         errorMessage = "删除失败：${e.message ?: "未知错误"}",
                     )
+                }
+            }
+        }
+    }
+
+    private fun setAppearanceMode(mode: AppearanceMode) {
+        if (_uiState.value.appearanceMode == mode) return
+        persistTheme { preferences.setAppearanceMode(mode) }
+    }
+
+    private fun setColorTheme(theme: AppColorTheme) {
+        if (_uiState.value.colorTheme == theme) return
+        persistTheme { preferences.setColorTheme(theme) }
+    }
+
+    private fun setDynamicColorEnabled(enabled: Boolean) {
+        if (!_uiState.value.isDynamicColorSupported) return
+        if (_uiState.value.dynamicColorEnabled == enabled) return
+        persistTheme { preferences.setDynamicColorEnabled(enabled) }
+    }
+
+    /**
+     * 主题偏好以 DataStore 为唯一数据源：写入成功后 Flow 回流更新 UiState，
+     * MainActivity 收集到变化后立即重组 RecAIteLABTheme。
+     */
+    private fun persistTheme(write: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                write()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "保存主题设置失败，请稍后重试")
                 }
             }
         }

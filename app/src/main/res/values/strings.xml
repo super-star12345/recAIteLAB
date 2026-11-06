@@ -53,9 +53,32 @@
     <string name="chat_model_picker_go_settings">去设置</string>
     <string name="chat_model_picker_no_models">该 Provider 还没有模型</string>
     <string name="chat_model_selected">当前模型</string>
+    <string name="markdown_code_copy">复制</string>
+    <string name="markdown_code_language_unknown">代码</string>
+
+    <string name="error_invalid_api_key">API Key 无效或无权限，请检查设置</string>
+    <string name="error_rate_limited">请求过于频繁或额度不足，请稍后重试</string>
+    <string name="error_network">网络连接失败，请检查网络</string>
+    <string name="error_configuration">对话配置不完整，请检查设置</string>
+    <string name="error_conversation_not_found">会话不存在或已被删除</string>
+    <string name="error_unknown">操作失败，请稍后重试</string>
+    <string name="action_retry">重试</string>
 
     <string name="settings_title">设置</string>
     <string name="settings_back">返回</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_appearance_mode">外观模式</string>
+    <string name="settings_appearance_system">跟随系统</string>
+    <string name="settings_appearance_light">浅色</string>
+    <string name="settings_appearance_dark">深色</string>
+    <string name="settings_models_title">模型选择</string>
+    <string name="settings_color_scheme">配色方案</string>
+    <string name="settings_color_default">默认</string>
+    <string name="settings_color_green">护眼绿</string>
+    <string name="settings_color_blue">商务蓝</string>
+    <string name="settings_dynamic_color">动态取色</string>
+    <string name="settings_dynamic_color_hint">使用系统壁纸配色（Android 12+）</string>
+    <string name="settings_dynamic_color_unsupported">当前系统版本不支持动态取色</string>
     <string name="settings_add_provider">添加 Provider</string>
     <string name="settings_edit_provider">编辑 Provider</string>
     <string name="settings_empty">还没有 Provider，添加一个开始使用</string>

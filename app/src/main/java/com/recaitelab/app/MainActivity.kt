@@ -49,7 +49,11 @@ import com.recaitelab.app.ui.navigation.ChatRoute
 import com.recaitelab.app.ui.navigation.HistoryRoute
 import com.recaitelab.app.ui.navigation.KnowledgeDetailRoute
 import com.recaitelab.app.ui.navigation.KnowledgeRoute
+import com.recaitelab.app.ui.navigation.SettingsAppearanceRoute
+import com.recaitelab.app.ui.navigation.SettingsModelsRoute
 import com.recaitelab.app.ui.navigation.SettingsRoute
+import com.recaitelab.app.ui.settings.AppearanceSettingsScreen
+import com.recaitelab.app.ui.settings.ModelSettingsScreen
 import com.recaitelab.app.ui.settings.SettingsEvent
 import com.recaitelab.app.ui.settings.SettingsScreen
 import com.recaitelab.app.ui.settings.SettingsViewModel
@@ -59,8 +63,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            RecAIteLABTheme {
-                AppRoot()
+            val settingsViewModel: SettingsViewModel = viewModel(factory = settingsViewModelFactory)
+            val settingsState by settingsViewModel.uiState.collectAsState()
+            RecAIteLABTheme(
+                appearanceMode = settingsState.appearanceMode,
+                colorTheme = settingsState.colorTheme,
+                dynamicColorEnabled = settingsState.dynamicColorEnabled,
+            ) {
+                AppRoot(settingsViewModel = settingsViewModel)
             }
         }
     }
@@ -73,12 +83,11 @@ class MainActivity : ComponentActivity() {
  * 时丢失聊天草稿、生成任务与设置表单；NavHost 自身负责保存/恢复各 Tab 的 Compose 状态。
  */
 @Composable
-private fun AppRoot() {
+private fun AppRoot(settingsViewModel: SettingsViewModel) {
     val navController = rememberNavController()
     val chatViewModel: ChatViewModel = viewModel(factory = chatViewModelFactory)
     val historyViewModel: HistoryViewModel = viewModel(factory = historyViewModelFactory)
     val knowledgeViewModel: KnowledgeViewModel = viewModel(factory = knowledgeViewModelFactory)
-    val settingsViewModel: SettingsViewModel = viewModel(factory = settingsViewModelFactory)
     val currentDestination = navController.currentBackStackEntryAsState().value?.destination
     // 二级页（如知识详情）不属于任何一级 Tab 时隐藏底栏；键盘显隐不参与底栏布局。
     val showBottomBar = if (currentDestination == null) {
@@ -170,7 +179,20 @@ private fun AppRoot() {
             composable<SettingsRoute> {
                 SettingsDestination(
                     viewModel = settingsViewModel,
-                    onBack = { navController.navigateToTab(ChatRoute) },
+                    onOpenAppearance = { navController.navigate(SettingsAppearanceRoute) },
+                    onOpenModels = { navController.navigate(SettingsModelsRoute) },
+                )
+            }
+            composable<SettingsAppearanceRoute> {
+                AppearanceSettingsDestination(
+                    viewModel = settingsViewModel,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable<SettingsModelsRoute> {
+                ModelSettingsDestination(
+                    viewModel = settingsViewModel,
+                    onBack = { navController.popBackStack() },
                 )
             }
         }
@@ -188,6 +210,8 @@ private fun ChatDestination(
         onInputChange = viewModel::onInputChange,
         onSend = viewModel::send,
         onStop = viewModel::stop,
+        onRetry = viewModel::retry,
+        onErrorShown = viewModel::onErrorShown,
         onOpenSettings = onOpenSettings,
         onModelSelected = viewModel::selectModel,
     )
@@ -277,20 +301,46 @@ private fun KnowledgeDetailDestination(
 @Composable
 private fun SettingsDestination(
     viewModel: SettingsViewModel,
+    onOpenAppearance: () -> Unit,
+    onOpenModels: () -> Unit,
+) {
+    val state by viewModel.uiState.collectAsState()
+    SettingsScreen(
+        state = state,
+        onOpenAppearance = onOpenAppearance,
+        onOpenModels = onOpenModels,
+    )
+}
+
+@Composable
+private fun AppearanceSettingsDestination(
+    viewModel: SettingsViewModel,
+    onBack: () -> Unit,
+) {
+    val state by viewModel.uiState.collectAsState()
+    AppearanceSettingsScreen(
+        state = state,
+        onBack = onBack,
+        onEvent = viewModel::onEvent,
+    )
+}
+
+@Composable
+private fun ModelSettingsDestination(
+    viewModel: SettingsViewModel,
     onBack: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    // 表单打开时，系统返回先取消表单，而不是切换 Tab。
+    // 表单打开时，系统返回先取消表单，而不是退出二级页。
     BackHandler(enabled = state.form != null) {
         viewModel.onEvent(SettingsEvent.CancelForm)
     }
 
-    SettingsScreen(
+    ModelSettingsScreen(
         state = state,
         onBack = onBack,
         onEvent = viewModel::onEvent,
-        showBackButton = false,
     )
 }
 
@@ -340,7 +390,12 @@ private val chatViewModelFactory = viewModelFactory {
 }
 
 private val settingsViewModelFactory = viewModelFactory {
-    initializer { SettingsViewModel(AppContainer.providerRepository) }
+    initializer {
+        SettingsViewModel(
+            providerRepository = AppContainer.providerRepository,
+            preferences = AppContainer.userPreferencesRepository,
+        )
+    }
 }
 
 private val historyViewModelFactory = viewModelFactory {

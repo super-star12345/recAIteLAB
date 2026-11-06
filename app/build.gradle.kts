@@ -14,6 +14,26 @@ val localProperties = Properties().apply {
     }
 }
 
+// Release 签名配置：所有真实值只从 keystore.properties 读取。
+// 该文件与 *.jks / *.keystore 均已在 .gitignore 中忽略，禁止提交。
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.isFile) {
+        file.inputStream().use { load(it) }
+    }
+}
+
+val releaseStoreFile = keystoreProperties.getProperty("storeFile")?.trim().orEmpty()
+val releaseStorePassword = keystoreProperties.getProperty("storePassword")?.trim().orEmpty()
+val releaseKeyAlias = keystoreProperties.getProperty("keyAlias")?.trim().orEmpty()
+val releaseKeyPassword = keystoreProperties.getProperty("keyPassword")?.trim().orEmpty()
+val hasReleaseSigning = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { it.isNotEmpty() }
+
 fun localProperty(key: String, defaultValue: String): String {
     val value = localProperties.getProperty(key)?.trim()
     return if (value.isNullOrEmpty()) defaultValue else value
@@ -38,6 +58,19 @@ android {
         versionName = "4.5.1"
     }
 
+    signingConfigs {
+        // 只有四项都填写后才创建 release 签名配置；占位为空时不影响 debug 构建。
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                storeType = "JKS"
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // 调试阶段的 DeepSeek 配置：只从本机 local.properties 注入，绝不提交该文件。
@@ -58,7 +91,12 @@ android {
             )
         }
         release {
-            isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            // 发布包开启 R8 混淆 + 资源裁剪；规则来自默认 optimize 配置与各库 consumer rules。
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

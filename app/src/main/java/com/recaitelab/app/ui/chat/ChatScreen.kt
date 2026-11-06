@@ -32,8 +32,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,6 +59,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.recaitelab.app.R
+import com.recaitelab.app.ui.common.MarkdownText
+import com.recaitelab.app.ui.common.message
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import java.util.UUID
 import kotlinx.coroutines.launch
@@ -73,6 +77,8 @@ fun ChatScreen(
     onInputChange: (String) -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
+    onRetry: () -> Unit,
+    onErrorShown: () -> Unit,
     onOpenSettings: () -> Unit,
     onModelSelected: (UUID, String) -> Unit,
     modifier: Modifier = Modifier,
@@ -81,10 +87,27 @@ fun ChatScreen(
     var showModelPicker by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val retryLabel = stringResource(R.string.action_retry)
+    val error = state.error
+    val errorMessage = when (error) {
+        null -> null
+        else -> error.message()
+    }
 
-    LaunchedEffect(state.errorMessage) {
-        val message = state.errorMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
+    LaunchedEffect(error, state.canRetry) {
+        errorMessage ?: return@LaunchedEffect
+        val canRetry = state.canRetry
+        val result = snackbarHostState.showSnackbar(
+            message = errorMessage,
+            actionLabel = if (canRetry) retryLabel else null,
+            withDismissAction = canRetry,
+            duration = if (canRetry) SnackbarDuration.Long else SnackbarDuration.Short,
+        )
+        // 先清掉本次错误，再发起重试，避免重试立即失败时的错误被这里误清。
+        onErrorShown()
+        if (result == SnackbarResult.ActionPerformed) {
+            onRetry()
+        }
     }
 
     val providerName = state.activeProviderName
@@ -282,19 +305,32 @@ private fun MessageBubble(
             shape = MaterialTheme.shapes.large,
             modifier = Modifier.widthIn(max = 320.dp),
         ) {
-            if (message.content.isEmpty() && message.isStreaming) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .size(20.dp),
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text(
-                    text = message.content,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                )
+            when {
+                message.content.isEmpty() && message.isStreaming -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+
+                // 用户消息保持纯文本；助手流式期间也用纯文本，避免每个增量都重新解析 Markdown。
+                isUser || message.isStreaming -> {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
+                }
+
+                // 助手回复完成后（含历史消息、停止后的半截内容）一次性切 Markdown 渲染。
+                else -> {
+                    MarkdownText(
+                        markdown = message.content,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
+                }
             }
         }
     }
@@ -493,6 +529,16 @@ private fun ChatScreenPreview() {
                         content = "SSE 是服务器通过一条长连接向客户端单向推送文本事件的协议。",
                         isStreaming = true,
                     ),
+                    UiMessage(
+                        role = UiMessage.ROLE_ASSISTANT,
+                        content = """
+                            ### 示例代码
+
+                            ```kotlin
+                            fun main() = println("hello")
+                            ```
+                        """.trimIndent(),
+                    ),
                 ),
                 isGenerating = true,
                 providers = listOf(
@@ -509,6 +555,8 @@ private fun ChatScreenPreview() {
             onInputChange = {},
             onSend = {},
             onStop = {},
+            onRetry = {},
+            onErrorShown = {},
             onOpenSettings = {},
             onModelSelected = { _, _ -> },
         )

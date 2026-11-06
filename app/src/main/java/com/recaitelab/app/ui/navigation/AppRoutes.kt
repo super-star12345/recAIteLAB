@@ -20,6 +20,14 @@ data object KnowledgeRoute
 @Serializable
 data object SettingsRoute
 
+/** 设置二级页：外观模式、配色方案、动态取色。 */
+@Serializable
+data object SettingsAppearanceRoute
+
+/** 设置二级页：模型与 Provider 管理。 */
+@Serializable
+data object SettingsModelsRoute
+
 /** 知识详情二级页；[entryId] 为知识条目主键。 */
 @Serializable
 data class KnowledgeDetailRoute(val entryId: Long)

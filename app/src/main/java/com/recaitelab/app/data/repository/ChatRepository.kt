@@ -3,6 +3,7 @@ package com.recaitelab.app.data.repository
 import com.recaitelab.app.data.remote.ChatProvider
 import com.recaitelab.app.data.remote.createChatProvider
 import com.recaitelab.app.domain.model.ChatMessage
+import com.recaitelab.app.domain.model.ContextWindow
 import com.recaitelab.app.domain.model.ProviderConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,7 +91,8 @@ class ChatRepository(
     ): Flow<String> = flow {
         val reply = StringBuilder()
         providerFactory(target.config).streamChat(
-            messages = snapshot.messages,
+            // 只裁剪本次请求的上下文；Room 中的完整历史保持不变。
+            messages = ContextWindow.truncate(snapshot.messages),
             model = target.model,
             temperature = temperature,
         ).collect { delta ->

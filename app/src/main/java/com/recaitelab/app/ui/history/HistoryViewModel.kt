@@ -3,11 +3,9 @@ package com.recaitelab.app.ui.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.recaitelab.app.data.local.model.ConversationSummary
-import com.recaitelab.app.data.remote.ApiException
-import com.recaitelab.app.data.repository.ChatConfigurationException
 import com.recaitelab.app.data.repository.ConversationRepository
+import com.recaitelab.app.data.repository.ErrorMapper
 import com.recaitelab.app.data.repository.KnowledgeOrganizer
-import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,7 +37,7 @@ class HistoryViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = "加载历史记录失败：${throwable.message ?: "未知错误"}",
+                            error = ErrorMapper.map(TAG, throwable),
                         )
                     }
                 }
@@ -76,7 +74,7 @@ class HistoryViewModel(
             it.copy(
                 isOrganizing = true,
                 organizeSuccessEntryId = null,
-                errorMessage = null,
+                error = null,
             )
         }
         viewModelScope.launch {
@@ -94,7 +92,7 @@ class HistoryViewModel(
                         _uiState.update {
                             it.copy(
                                 isOrganizing = false,
-                                errorMessage = error.toOrganizeMessage(),
+                                error = ErrorMapper.map(TAG, error),
                             )
                         }
                     },
@@ -123,7 +121,7 @@ class HistoryViewModel(
                 throw e
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(errorMessage = "删除会话失败：${e.message ?: "未知错误"}")
+                    it.copy(error = ErrorMapper.map(TAG, e))
                 }
             }
         }
@@ -173,7 +171,7 @@ class HistoryViewModel(
                 throw e
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(errorMessage = "重命名失败：${e.message ?: "未知错误"}")
+                    it.copy(error = ErrorMapper.map(TAG, e))
                 }
             }
         }
@@ -190,20 +188,7 @@ class HistoryViewModel(
     }
 
     fun onErrorShown() {
-        _uiState.update { it.copy(errorMessage = null) }
-    }
-
-    private fun Throwable.toOrganizeMessage(): String = when (this) {
-        is ChatConfigurationException -> message ?: "对话配置不完整"
-        is ApiException -> when (statusCode) {
-            401, 403 -> "API Key 无效或无权限"
-            404 -> "接口地址或模型不存在"
-            429 -> "请求过于频繁，请稍后重试"
-            in 500..599 -> "服务端错误（$statusCode）"
-            else -> serverMessage.ifBlank { "整理失败（$statusCode）" }
-        }
-        is IOException -> "网络异常，请检查连接"
-        else -> message?.takeIf { it.isNotBlank() }?.let { "整理失败：$it" } ?: "整理失败，请重试"
+        _uiState.update { it.copy(error = null) }
     }
 
     private fun ConversationSummary.toUiModel(): HistoryConversationUiModel =
@@ -219,6 +204,7 @@ class HistoryViewModel(
         )
 
     private companion object {
+        const val TAG: String = "HistoryViewModel"
         const val MAX_TITLE_LENGTH: Int = 40
         const val PREVIEW_MAX_LENGTH: Int = 80
         val WHITESPACE_REGEX: Regex = Regex("\\s+")

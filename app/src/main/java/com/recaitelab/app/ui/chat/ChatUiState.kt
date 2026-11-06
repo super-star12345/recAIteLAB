@@ -1,5 +1,6 @@
 package com.recaitelab.app.ui.chat
 
+import com.recaitelab.app.domain.model.UserError
 import java.util.UUID
 
 /**
@@ -9,7 +10,8 @@ import java.util.UUID
  * @property inputText 输入框内容
  * @property isLoadingHistory 是否正在从 Room 恢复上次会话的历史消息
  * @property isGenerating 是否正在生成（用于禁用发送 / 切换为停止按钮）
- * @property errorMessage 最近一次失败提示，成功发起新请求时清空
+ * @property error 最近一次失败分类；成功发起新请求时清空
+ * @property canRetry 失败后是否允许用「重试」重新生成（配置类错误不可重试）
  * @property providers 模型选择器数据，按 Provider 分组，不含 apiKey
  * @property activeProviderId 当前激活 Provider
  * @property activeProviderName 当前激活 Provider 的显示名
@@ -20,7 +22,8 @@ data class ChatUiState(
     val inputText: String = "",
     val isLoadingHistory: Boolean = false,
     val isGenerating: Boolean = false,
-    val errorMessage: String? = null,
+    val error: UserError? = null,
+    val canRetry: Boolean = false,
     val providers: List<ProviderModels> = emptyList(),
     val activeProviderId: UUID? = null,
     val activeProviderName: String? = null,

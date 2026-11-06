@@ -1,5 +1,7 @@
 package com.recaitelab.app.ui.history
 
+import com.recaitelab.app.domain.model.UserError
+
 /**
  * 历史记录页状态。
  *
@@ -11,7 +13,7 @@ package com.recaitelab.app.ui.history
  * @property renameError 重命名校验错误
  * @property isOrganizing 是否正在整理为知识（显示 Loading 对话框并禁止重复触发）
  * @property organizeSuccessEntryId 整理成功后的知识条目 id；非空时显示成功 Snackbar
- * @property errorMessage 删除/重命名/整理等操作失败提示
+ * @property error 删除/重命名/整理等操作失败分类，由 UI 映射为统一文案
  */
 data class HistoryUiState(
     val conversations: List<HistoryConversationUiModel> = emptyList(),
@@ -22,7 +24,7 @@ data class HistoryUiState(
     val renameError: HistoryRenameError? = null,
     val isOrganizing: Boolean = false,
     val organizeSuccessEntryId: Long? = null,
-    val errorMessage: String? = null,
+    val error: UserError? = null,
 )
 
 /** 历史列表行数据；不含消息正文以外的隐私字段。 */

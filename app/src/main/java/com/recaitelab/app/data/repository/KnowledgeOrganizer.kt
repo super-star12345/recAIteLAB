@@ -4,12 +4,10 @@ import android.util.Log
 import com.recaitelab.app.data.remote.ChatProvider
 import com.recaitelab.app.data.remote.createChatProvider
 import com.recaitelab.app.domain.model.ChatMessage
+import com.recaitelab.app.domain.model.ContextWindow
 import com.recaitelab.app.domain.model.KnowledgeEntry
 import com.recaitelab.app.domain.model.ProviderConfig
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 
 /**
  * 会话知识整理服务。
@@ -26,12 +24,6 @@ class KnowledgeOrganizer(
     private val knowledgeRepository: KnowledgeRepository,
     private val providerFactory: (ProviderConfig) -> ChatProvider = ::createChatProvider,
 ) {
-
-    private val knowledgeJson: Json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-        explicitNulls = false
-    }
 
     /**
      * 整理指定会话。
@@ -50,7 +42,8 @@ class KnowledgeOrganizer(
             val model = config.selectedModel
                 ?: throw ChatConfigurationException.NoSelectedModel(config.name)
 
-            val transcript = messages
+            // 与对话请求共用同一套「system + 最近历史」截断；再按 20k 字符兜底。
+            val transcript = ContextWindow.truncate(messages)
                 .joinToString(separator = "\n") { message -> "${message.role}: ${message.content}" }
                 .truncateTranscript()
             val prompt = PROMPT_PREFIX + "\n" + transcript
@@ -62,8 +55,8 @@ class KnowledgeOrganizer(
             ).collect { chunk -> output.append(chunk) }
 
             val raw = output.toString()
-            val payload = parsePayload(raw)
-            val entry = buildEntry(
+            val payload = KnowledgePayloadParser.parse(raw)
+            val entry = KnowledgePayloadParser.buildEntry(
                 raw = raw,
                 payload = payload,
                 conversationId = conversationId,
@@ -85,52 +78,6 @@ class KnowledgeOrganizer(
         }
     }
 
-    /** 先取首个 `{` 到末个 `}`，兼容 ```json 围栏和额外说明文字。 */
-    private fun parsePayload(raw: String): KnowledgePayload? {
-        val start = raw.indexOf('{')
-        val end = raw.lastIndexOf('}')
-        if (start < 0 || end <= start) return null
-        val candidate = raw.substring(start, end + 1)
-        return runCatching {
-            knowledgeJson.decodeFromString<KnowledgePayload>(candidate)
-        }.getOrNull()
-    }
-
-    private fun buildEntry(
-        raw: String,
-        payload: KnowledgePayload?,
-        conversationId: Long,
-        providerId: String,
-        model: String,
-    ): KnowledgeEntry {
-        val now = System.currentTimeMillis()
-        return if (payload != null) {
-            KnowledgeEntry(
-                title = payload.title.trim().ifBlank { FALLBACK_TITLE },
-                summary = payload.summary.trim().ifBlank { raw.take(SUMMARY_FALLBACK_LENGTH) },
-                content = payload.content.trim().ifBlank { raw },
-                tags = payload.tags,
-                sourceConversationId = conversationId,
-                providerId = providerId,
-                model = model,
-                createdAt = now,
-                updatedAt = now,
-            )
-        } else {
-            KnowledgeEntry(
-                title = FALLBACK_TITLE,
-                summary = raw.take(SUMMARY_FALLBACK_LENGTH),
-                content = raw,
-                tags = emptyList(),
-                sourceConversationId = conversationId,
-                providerId = providerId,
-                model = model,
-                createdAt = now,
-                updatedAt = now,
-            )
-        }
-    }
-
     /** 超长对话保留首尾，后续阶段再做模型级截断策略。 */
     private fun String.truncateTranscript(): String {
         if (length <= MAX_TRANSCRIPT_CHARS) return this
@@ -141,20 +88,9 @@ class KnowledgeOrganizer(
             takeLast(tailLength)
     }
 
-    /** 模型返回的 JSON 结构；缺字段时用空串/空数组兜底。 */
-    @Serializable
-    private data class KnowledgePayload(
-        val title: String = "",
-        val summary: String = "",
-        val content: String = "",
-        val tags: List<String> = emptyList(),
-    )
-
     private companion object {
         const val TAG: String = "KnowledgeOrganizer"
         const val ROLE_USER: String = "user"
-        const val FALLBACK_TITLE: String = "未命名整理"
-        const val SUMMARY_FALLBACK_LENGTH: Int = 100
         const val MAX_TRANSCRIPT_CHARS: Int = 20_000
 
         val PROMPT_PREFIX: String = """
