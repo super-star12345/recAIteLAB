@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -97,6 +98,8 @@ fun ChatScreen(
     Scaffold(
         modifier = modifier
             .fillMaxSize(),
+        // 状态栏由 TopAppBar 处理；底部安全区由外层 NavigationBar 处理。
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = {
@@ -133,7 +136,36 @@ fun ChatScreen(
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        bottomBar = {
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
+            // 消息区占用剩余高度；输入区是 Column 最后一个固定子项，始终在底栏上方。
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                when {
+                    state.isLoadingHistory -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
+
+                    state.messages.isEmpty() -> {
+                        EmptyState(modifier = Modifier.align(Alignment.Center))
+                    }
+
+                    else -> {
+                        MessageList(
+                            messages = state.messages,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+            }
+
             ChatInputBar(
                 inputText = state.inputText,
                 isGenerating = state.isGenerating,
@@ -143,29 +175,6 @@ fun ChatScreen(
                 onStop = onStop,
                 modifier = Modifier.imePadding(),
             )
-        },
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            when {
-                state.isLoadingHistory -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
-
-                state.messages.isEmpty() -> {
-                    EmptyState(modifier = Modifier.align(Alignment.Center))
-                }
-
-                else -> {
-                    MessageList(
-                        messages = state.messages,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
         }
     }
 

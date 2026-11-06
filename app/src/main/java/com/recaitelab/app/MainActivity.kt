@@ -4,11 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -74,7 +72,6 @@ class MainActivity : ComponentActivity() {
  * ViewModel 提升到 Activity 作用域，避免 Tab 切换（destination 被 saveState 移出组合）
  * 时丢失聊天草稿、生成任务与设置表单；NavHost 自身负责保存/恢复各 Tab 的 Compose 状态。
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AppRoot() {
     val navController = rememberNavController()
@@ -83,9 +80,7 @@ private fun AppRoot() {
     val knowledgeViewModel: KnowledgeViewModel = viewModel(factory = knowledgeViewModelFactory)
     val settingsViewModel: SettingsViewModel = viewModel(factory = settingsViewModelFactory)
     val currentDestination = navController.currentBackStackEntryAsState().value?.destination
-    // IME 弹起时隐藏底栏，避免底栏占位把输入框顶到键盘上方并留出空白。
-    val imeVisible = WindowInsets.isImeVisible
-    // 二级页（如知识详情）不属于任何一级 Tab 时隐藏底栏。
+    // 二级页（如知识详情）不属于任何一级 Tab 时隐藏底栏；键盘显隐不参与底栏布局。
     val showBottomBar = if (currentDestination == null) {
         true
     } else {
@@ -101,7 +96,7 @@ private fun AppRoot() {
         // 顶栏/底栏的 insets 由各页面自己的 Scaffold 与 NavigationBar 处理，外层不再重复加。
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (!imeVisible && showBottomBar) {
+            if (showBottomBar) {
                 NavigationBar {
                     topLevelTabs.forEach { tab ->
                         val selected = currentDestination

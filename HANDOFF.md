@@ -11,15 +11,15 @@
 |---|---|
 | 应用版本 | **4.5.1**（versionCode **451**） |
 | 包名 / applicationId | `com.recaitelab.app` |
-| 分支 / HEAD | `main` @ 本地最新提交（上一提交 `cc6721c`；4.5.1 提交未推送） |
+| 分支 / HEAD | `main` @ 本地最新提交（含 IME 修复；上一提交 `215d90f` 已推送；本次提交未推送） |
 | 远端 | `origin = https://github.com/super-star12345/recAIteLAB.git`（Public） |
-| 工作树 | 代码与 HANDOFF 已随 4.5.1 本地提交；`local.properties` / `build/` / APK 被忽略 |
+| 工作树 | 代码与 HANDOFF 随本次本地提交；`local.properties` / `build/` / APK 被忽略 |
 | 编译 / 测试 | `.\gradlew.bat assembleDebug` 通过；`testDebugUnitTest` 3/3 通过 |
 | 真机 | 已安装 **3.5.2**（2026-10-31 22:20:59）；**4.5.1 尚未安装** |
 | 下一阶段 | 阶段 5 体验打磨 / 阶段 6 测试发布 |
 
-**推送状态**：`cc6721c` **尚未推送**。`git push origin main` 报 `Failed to connect to github.com port 443`；
-本机 `Test-NetConnection github.com -Port 443` 返回 False，Git 无代理配置。网络恢复后执行
+**推送状态**：`origin/main` 已包含 `cc6721c` 与 `215d90f`；仅本次 IME 修复提交尚未推送。
+`git push origin main` 在本沙箱仍报 `Failed to connect to github.com port 443`；网络可访问 GitHub 后执行
 `git push origin main`，当前 `main...origin/main [ahead 1]`。
 
 **重要**：`local.properties` 里仍有真实 DeepSeek Key（不要读取、打印或提交）。Provider / 会话 / 消息 /
@@ -213,13 +213,17 @@ com.recaitelab.app
 
 - `MainActivity`：`Scaffold + NavHost`；一级路由 Chat/History/Knowledge/Settings，二级
   KnowledgeDetail；Tab 切换 `saveState/restoreState/launchSingleTop/popUpTo(start)`。
-- 底栏在一级 Tab 显示；进入知识详情或 IME 弹起时隐藏。ViewModel 提升到 Activity 作用域，Tab 切换不丢状态。
+- 底栏在一级 Tab **始终显示，包括 IME 弹起时**；只有知识详情等二级页隐藏。底栏不再根据键盘显隐、
+  不添加 imePadding、不做高度动画。ViewModel 提升到 Activity 作用域，Tab 切换不丢状态。
 - Manifest：Activity `android:windowSoftInputMode="adjustResize"`。
 - 根 `Scaffold` `contentWindowInsets = WindowInsets(0,0,0,0)`；NavHost `padding + consumeWindowInsets`；
-  状态栏由各页 TopAppBar / Scaffold 处理，导航栏由 NavigationBar 处理。
-- Chat：只在 `ChatInputBar` 使用一次 `Modifier.imePadding()`；根/列表不再叠加；设置页根保留自身一次
-  `imePadding()`。无键盘高度监听、无 adjustPan。
-- 旧问题已修：Chat 内层 Scaffold 的 imePadding 叠加底栏占位导致输入框上移/回弹与键盘上方空白。
+  状态栏由各页 TopAppBar / Scaffold 处理，导航栏由常驻 NavigationBar 处理。
+- ChatScreen：内层 `Scaffold` 只保留 topBar，`contentWindowInsets = 0`；content 为明确 `Column`：
+  消息区 `Box(weight(1f))`（内部 LazyColumn），`ChatInputBar` 作为最后一个固定子项，始终位于底栏上方。
+- IME：只在 `ChatInputBar` 使用一次 `Modifier.imePadding()`；根布局、消息列表、NavigationBar 不消费 IME
+  insets。设置页根保留自身一次 `imePadding()` 供表单使用。
+- 已移除 `isImeVisible` 和键盘显隐控制；无 `AnimatedVisibility` / `animateContentSize` / `onGlobalLayout`，
+  无 delay、固定高度、关闭自动滚动等规避手段。IME 动画期间底栏不再退出布局，输入区不会瞬间失去底部约束。
 
 ### 3.4 调试配置
 
@@ -262,6 +266,7 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 - **锁屏/休眠时 `pm install` 会报 `INSTALL_FAILED_ABORTED: User rejected permissions`**；解锁并回桌面后重试。
 - `.\gradlew.bat installDebug` 也常被 vivo 安装确认拦截；优先用 `pm install`。
 - 当前真机已安装 **3.5.2 / 352**（2026-10-31 22:20:59）；**4.5.1 / 451 尚未安装**。`pm install -r` 保留数据；卸载才清空。
+- 4.5.1 的 IME 稳定布局修复（底栏常驻 + Chat Column 约束）仅编译通过，**尚未安装到真机验证**。
 - debug APK 约 **24.3MB**（material-icons + Room/DataStore + Navigation + Markdown renderer）。
 - 已验证：四 Tab 切换/状态保留、历史列表、点击会话、新建会话、长按删除弹窗、重命名；整理为知识已实际写入
   Room（日志 `I KnowledgeOrganizer: Knowledge entry stored: id=1, conversationId=2, fallback=false`）。
@@ -295,10 +300,10 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 
 ## 6. Git 状态
 
-- 分支 `main`，最新本地提交包含 4.5.1（上一提交 `cc6721c`），尚未推送。
+- 分支 `main`，最新本地提交包含 IME 稳定布局修复与 HANDOFF（上一提交 `215d90f` 已推送），本次提交尚未推送。
 - 远端：`https://github.com/super-star12345/recAIteLAB.git`（Public）。
 - 已提交：全部源码、`CLAUDE.md`、`PRD.md`、plan 文档、Room schema、JUnit 测试、版本 4.5.1（本地）。
-- 未提交：无（4.5.1 与本次 HANDOFF 已包含在本地提交）；`local.properties`、`build/`、APK、`.gradle/` 被忽略。
+- 未提交：无（本次 IME 修复与 HANDOFF 均包含在本地提交）；`local.properties`、`build/`、APK、`.gradle/` 被忽略。
 - 提交前已扫描源码无 `sk-*` 明文；不得提交 `local.properties` 或 debug APK。
 - 网络恢复后：`git push origin main`。
 
@@ -313,7 +318,7 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 - 会话/消息持久化、启动恢复、严格会话隔离（含 JUnit 回归测试）；
 - 四 Tab 导航、历史记录（新建/打开/重命名/删除/整理为知识）、知识库列表/搜索/删除/详情/Markdown；
 - 知识整理服务（JSON 解析 + 兜底落库）；
-- temperature 默认不发送、IME 布局修复、版本 4.5.1。
+- temperature 默认不发送、IME 稳定布局修复（底栏常驻 + Chat Column 约束）、版本 4.5.1。
 
 阶段 5 打磨缺口：
 
