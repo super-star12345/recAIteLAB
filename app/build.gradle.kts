@@ -149,6 +149,8 @@ dependencies {
     ksp("androidx.room:room-compiler:2.8.5")
     implementation("androidx.datastore:datastore-preferences:1.3.0")
     implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.46.0")
+    // T3 标准玻璃：唯一的背景模糊依赖（Android/Compose Multiplatform 通用）
+    implementation("dev.chrisbanes.haze:haze:1.7.3")
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

@@ -107,6 +107,22 @@
     <string name="prism_preview_buttons">按钮</string>
     <string name="prism_preview_bottombar">底栏</string>
     <string name="prism_preview_note">静态样式预览，不含页面转场与背景模糊。</string>
+    <string name="prism_preview_transition">转场预览</string>
+    <string name="prism_preview_transition_summary" formatted="false">新页右侧进入 · 前页后移 30% · 暗化 10% · 弹簧约 300ms</string>
+    <string name="prism_preview_detail_title">演示详情</string>
+    <string name="prism_preview_detail_card">演示卡片</string>
+    <string name="prism_preview_detail_body">这是假数据演示页，用于验证 Prism push 转场：新页面从右侧进入，前页联动后退并叠加暗化；返回时对称反向。</string>
+    <string name="prism_preview_detail_back">返回预览</string>
+    <string name="prism_preview_detail_note">仅验证 Prism 转场，不修改正式业务页面与 Material 导航。</string>
+    <string name="prism_glass_section">标准玻璃（STANDARD）</string>
+    <string name="prism_glass_quality">玻璃质量</string>
+    <string name="prism_glass_topbar">玻璃顶栏</string>
+    <string name="prism_glass_backdrop_item">背景内容 %1$d</string>
+    <string name="prism_glass_backdrop_hint">滚动查看玻璃栏的模糊与 tint</string>
+    <string name="prism_glass_standard_hint">STANDARD：背景模糊 + 半透明 tint + 1dp 边缘高光 + 轻微阴影</string>
+    <string name="prism_glass_fallback_hint">当前设备不支持背景模糊（Android 12 以下），已降级为 frost / tint / 描边</string>
+    <string name="prism_glass_off_hint">OFF：使用不透明表面，不启用模糊</string>
+    <string name="prism_glass_ultra_unimplemented">ULTRA 本阶段未实现，按不透明表面显示（不伪造效果）</string>
     <string name="prism_preview_back">返回</string>
     <string name="prism_preview_sample_title">设计系统预览</string>
     <string name="prism_preview_sample_body">连续圆角、种子色与表面层级都由 Prism token 驱动。</string>

@@ -214,6 +214,10 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
                     initialStyle = state.prismColorStyle,
                     seedColorArgb = state.prismSeedColor,
                     initialDark = isDark,
+                    glassQuality = state.glassQuality,
+                    onGlassQualityChange = { quality ->
+                        settingsViewModel.onEvent(SettingsEvent.GlassQualityChange(quality))
+                    },
                     onBack = { navController.popBackStack() },
                 )
             }
