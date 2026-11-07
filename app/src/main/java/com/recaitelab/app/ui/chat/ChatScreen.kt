@@ -60,6 +60,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.recaitelab.app.R
 import com.recaitelab.app.ui.common.MarkdownText
+import com.recaitelab.app.ui.common.MarkdownTextStyle
 import com.recaitelab.app.ui.common.message
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import java.util.UUID
@@ -329,6 +330,7 @@ private fun MessageBubble(
                     MarkdownText(
                         markdown = message.content,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        style = MarkdownTextStyle.CHAT,
                     )
                 }
             }

@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -39,6 +40,17 @@ import org.intellij.markdown.ast.findChildOfType
 import org.intellij.markdown.ast.getTextInNode
 
 /**
+ * Markdown 文本的展示场景。
+ *
+ * - [ARTICLE]：知识详情等长文阅读场景，沿用 Markdown 库默认的文章级标题字号；
+ * - [CHAT]：对话页助手气泡，使用更紧凑的标题层级，避免 H1/H2 过大。
+ */
+enum class MarkdownTextStyle {
+    ARTICLE,
+    CHAT,
+}
+
+/**
  * 可复用的 Compose Markdown 渲染组件。
  *
  * 使用 Mikepenz multiplatform-markdown-renderer 的 Material 3 版本；
@@ -50,6 +62,7 @@ import org.intellij.markdown.ast.getTextInNode
 fun MarkdownText(
     markdown: String,
     modifier: Modifier = Modifier,
+    style: MarkdownTextStyle = MarkdownTextStyle.ARTICLE,
 ) {
     // 只覆盖代码围栏渲染，其余组件沿用库默认实现；不额外引入 Markdown 库。
     val components = remember {
@@ -57,10 +70,22 @@ fun MarkdownText(
             codeFence = { model -> MarkdownCodeFence(model) },
         )
     }
+    val typography = when (style) {
+        MarkdownTextStyle.ARTICLE -> markdownTypography()
+        // 对话紧凑样式：只收紧标题字号/行高，不改全局 Typography 和正文块间距。
+        MarkdownTextStyle.CHAT -> markdownTypography(
+            h1 = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            h2 = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            h3 = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+            h4 = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+            h5 = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+            h6 = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+        )
+    }
     Markdown(
         content = markdown,
         colors = markdownColor(),
-        typography = markdownTypography(),
+        typography = typography,
         components = components,
         modifier = modifier,
     )
