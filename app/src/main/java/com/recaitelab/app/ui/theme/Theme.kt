@@ -19,6 +19,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import com.recaitelab.app.domain.model.AppColorTheme
 import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.AppearanceMode
@@ -30,6 +31,9 @@ import com.recaitelab.app.ui.prism.PrismTheme
 
 /** 当前设计系统；页面用它做视觉组件分流，不重复业务逻辑。 */
 val LocalAppDesignSystem = staticCompositionLocalOf { AppDesignSystem.MATERIAL_3 }
+
+/** Prism 悬浮 Dock 占用的底部空间（含系统导航栏与间距）；Material 模式恒为 0。 */
+val LocalPrismDockSpace = staticCompositionLocalOf { 0.dp }
 
 /**
  * 应用主题：外观模式（跟随系统 / 浅色 / 深色）+ 配色方案（默认 / 护眼绿 / 商务蓝）。

@@ -2,6 +2,7 @@ package com.recaitelab.app.ui.chat
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -62,52 +64,46 @@ fun PrismChatTopBar(
 ) {
     val colors = PrismTheme.colors
     val shapes = PrismTheme.shapes
-    Box(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .prismGlassSurface(
                 quality = quality,
                 hazeState = hazeState,
-                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
-            ),
+                shape = shapes.large,
+            )
+            .height(56.dp)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .statusBarsPadding()
-                .fillMaxWidth()
-                .height(64.dp)
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .weight(1f)
+                .clip(shapes.listRow)
+                .prismPressFeedback(onClick = onOpenPicker)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(shapes.listRow)
-                    .prismPressFeedback(onClick = onOpenPicker)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = modelLabel,
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = colors.onBackground,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Icon(
-                        imageVector = Icons.Filled.ArrowDropDown,
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant,
-                    )
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.onSurfaceVariant,
+                    text = modelLabel,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    tint = colors.onSurfaceVariant,
                 )
             }
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant,
+            )
         }
     }
 }
@@ -173,6 +169,8 @@ fun PrismChatInputBar(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
+    quality: GlassQuality,
+    hazeState: HazeState,
     modifier: Modifier = Modifier,
 ) {
     val colors = PrismTheme.colors
@@ -180,73 +178,69 @@ fun PrismChatInputBar(
     val inputEnabled = !isGenerating && !isLoadingHistory
     val actionEnabled = !isLoadingHistory && (isGenerating || inputText.isNotBlank())
 
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = colors.background,
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .prismGlassSurface(
+                quality = quality,
+                hazeState = hazeState,
+                shape = shapes.large,
+            )
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .weight(1f)
+                .background(colors.surface.copy(alpha = 0.82f), shapes.listRow)
+                .border(BorderStroke(1.dp, colors.outlineVariant), shapes.listRow)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = shapes.listRow,
-                color = colors.surface,
-                contentColor = colors.onSurface,
-                border = BorderStroke(1.dp, colors.outlineVariant),
-            ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                ) {
-                    if (inputText.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.chat_input_hint),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = colors.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    BasicTextField(
-                        value = inputText,
-                        onValueChange = onInputChange,
-                        enabled = inputEnabled,
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
-                        cursorBrush = SolidColor(colors.primary),
-                        maxLines = 5,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = { onSend() }),
-                    )
-                }
+            if (inputText.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.chat_input_hint),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
+            BasicTextField(
+                value = inputText,
+                onValueChange = onInputChange,
+                enabled = inputEnabled,
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+                cursorBrush = SolidColor(colors.primary),
+                maxLines = 5,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { onSend() }),
+            )
+        }
 
-            Surface(
-                modifier = Modifier
-                    .size(48.dp)
-                    .prismPressFeedback(
-                        enabled = actionEnabled,
-                        onClick = { if (isGenerating) onStop() else onSend() },
+        Surface(
+            modifier = Modifier
+                .size(48.dp)
+                .prismPressFeedback(
+                    enabled = actionEnabled,
+                    onClick = { if (isGenerating) onStop() else onSend() },
+                ),
+            shape = shapes.pill,
+            color = if (actionEnabled) colors.primary else colors.surfaceHigh,
+            contentColor = if (actionEnabled) colors.onPrimary else colors.onSurfaceVariant,
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = if (isGenerating) {
+                        Icons.Filled.Stop
+                    } else {
+                        Icons.AutoMirrored.Filled.Send
+                    },
+                    contentDescription = stringResource(
+                        if (isGenerating) R.string.chat_stop else R.string.chat_send,
                     ),
-                shape = shapes.pill,
-                color = if (actionEnabled) colors.primary else colors.surfaceHigh,
-                contentColor = if (actionEnabled) colors.onPrimary else colors.onSurfaceVariant,
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = if (isGenerating) {
-                            Icons.Filled.Stop
-                        } else {
-                            Icons.AutoMirrored.Filled.Send
-                        },
-                        contentDescription = stringResource(
-                            if (isGenerating) R.string.chat_stop else R.string.chat_send,
-                        ),
-                    )
-                }
+                )
             }
         }
     }

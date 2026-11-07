@@ -65,6 +65,7 @@ import com.recaitelab.app.ui.prism.PrismFab
 import com.recaitelab.app.ui.prism.PrismTheme
 import com.recaitelab.app.ui.prism.PrismTopBar
 import com.recaitelab.app.ui.theme.LocalAppDesignSystem
+import com.recaitelab.app.ui.theme.LocalPrismDockSpace
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -125,6 +126,7 @@ fun HistoryScreen(
     }
 
     val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+    val dockSpace = LocalPrismDockSpace.current
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -147,6 +149,7 @@ fun HistoryScreen(
                 PrismFab(
                     onClick = onNewConversation,
                     contentDescription = stringResource(R.string.history_new_conversation),
+                    modifier = Modifier.padding(bottom = dockSpace),
                 )
             } else {
                 FloatingActionButton(onClick = onNewConversation) {
@@ -187,6 +190,7 @@ fun HistoryScreen(
                     HistoryList(
                         conversations = state.conversations,
                         isPrism = isPrism,
+                        dockSpace = dockSpace,
                         onOpenConversation = onOpenConversation,
                         onOrganizeConversation = onOrganizeConversation,
                         onRequestDelete = onRequestDelete,
@@ -224,6 +228,7 @@ fun HistoryScreen(
 private fun HistoryList(
     conversations: List<HistoryConversationUiModel>,
     isPrism: Boolean,
+    dockSpace: androidx.compose.ui.unit.Dp,
     onOpenConversation: (Long) -> Unit,
     onOrganizeConversation: (HistoryConversationUiModel) -> Unit,
     onRequestDelete: (HistoryConversationUiModel) -> Unit,
@@ -231,9 +236,14 @@ private fun HistoryList(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        // 给 FAB 留出滚动空间，避免最后一条被遮挡。
+        // 给 FAB 与悬浮 Dock 留出滚动空间，最后一条可完整滚到它们上方。
         contentPadding = if (isPrism) {
-            PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp)
+            PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 8.dp,
+                bottom = 96.dp + dockSpace,
+            )
         } else {
             PaddingValues(bottom = 88.dp)
         },

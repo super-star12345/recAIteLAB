@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -55,6 +56,7 @@ import com.recaitelab.app.ui.prism.PrismTheme
 import com.recaitelab.app.ui.prism.PrismTopBar
 import com.recaitelab.app.ui.prism.prismPressFeedback
 import com.recaitelab.app.ui.theme.LocalAppDesignSystem
+import com.recaitelab.app.ui.theme.LocalPrismDockSpace
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import java.util.UUID
 
@@ -75,6 +77,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+    val dockSpace = LocalPrismDockSpace.current
 
     val modeLabel = stringResource(state.appearanceMode.labelRes())
     val colorLabel = stringResource(state.colorTheme.labelRes())
@@ -136,6 +139,11 @@ fun SettingsScreen(
                     onEvent = onEvent,
                     onOpenPrismPreview = onOpenPrismPreview,
                 )
+            }
+
+            // 末尾留白让内容可以滚过悬浮 Dock 后方，同时最后一项不会被 Dock 遮挡。
+            if (isPrism) {
+                Spacer(modifier = Modifier.height(dockSpace + 8.dp))
             }
         }
     }

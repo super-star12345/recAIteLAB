@@ -61,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -68,6 +69,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onSizeChanged
 import com.recaitelab.app.R
 import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.GlassQuality
@@ -81,6 +83,7 @@ import com.recaitelab.app.ui.prism.PrismEmptyState
 import com.recaitelab.app.ui.prism.PrismTheme
 import com.recaitelab.app.ui.prism.prismGlassSurface
 import com.recaitelab.app.ui.theme.LocalAppDesignSystem
+import com.recaitelab.app.ui.theme.LocalPrismDockSpace
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
@@ -122,9 +125,11 @@ fun ChatScreen(
     }
 
     val hazeEnabled = isPrism && glassQuality == GlassQuality.STANDARD
-    val topBarHazeState = rememberHazeState(blurEnabled = hazeEnabled)
-    val pickerHazeState = rememberHazeState(blurEnabled = hazeEnabled)
+    val chatHazeState = rememberHazeState(blurEnabled = hazeEnabled)
     val topBarTopInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val dockSpace = LocalPrismDockSpace.current
+    val density = LocalDensity.current
+    var prismInputHeight by remember { mutableStateOf(0.dp) }
 
     LaunchedEffect(error, state.canRetry) {
         errorMessage ?: return@LaunchedEffect
@@ -199,117 +204,137 @@ fun ChatScreen(
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
+        if (isPrism) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) {
+                // 消息内容铺满整屏并作为 Haze 源；顶栏、输入区、Sheet 都浮在它上面。
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .hazeSource(chatHazeState),
+                ) {
+                    when {
+                        state.isLoadingHistory -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center),
+                                color = PrismTheme.colors.primary,
+                            )
+                        }
+
+                        state.messages.isEmpty() -> {
+                            PrismEmptyState(
+                                icon = Icons.Filled.AutoAwesome,
+                                title = stringResource(R.string.chat_empty_message),
+                                modifier = Modifier.align(Alignment.Center),
+                            )
+                        }
+
+                        else -> {
+                            MessageList(
+                                messages = state.messages,
+                                isPrism = true,
+                                topPadding = topBarTopInset + 72.dp,
+                                bottomPadding = prismInputHeight + dockSpace + 16.dp,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                }
+
+                PrismChatTopBar(
+                    modelLabel = modelLabel,
+                    onOpenPicker = { showModelPicker = true },
+                    quality = glassQuality,
+                    hazeState = chatHazeState,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(horizontal = 12.dp)
+                        .padding(top = topBarTopInset + 8.dp),
+                )
+
+                PrismChatInputBar(
+                    inputText = state.inputText,
+                    isGenerating = state.isGenerating,
+                    isLoadingHistory = state.isLoadingHistory,
+                    onInputChange = onInputChange,
+                    onSend = { onSend(state.inputText) },
+                    onStop = onStop,
+                    quality = glassQuality,
+                    hazeState = chatHazeState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = dockSpace)
+                        // IME insets 仅在此处消费一次，与 Material 分支保持同一约束。
+                        .imePadding()
+                        .onSizeChanged { size ->
+                            prismInputHeight = with(density) { size.height.toDp() }
+                        },
+                )
+
+                if (showModelPicker) {
+                    PrismPickerOverlay(
+                        providers = state.providers,
+                        activeProviderId = state.activeProviderId,
+                        activeModel = state.activeModel,
+                        quality = glassQuality,
+                        hazeState = chatHazeState,
+                        dockSpace = dockSpace,
+                        onSelect = { providerId, model ->
+                            onModelSelected(providerId, model)
+                            showModelPicker = false
+                        },
+                        onGoSettings = {
+                            showModelPicker = false
+                            onOpenSettings()
+                        },
+                        onDismiss = { showModelPicker = false },
+                    )
+                }
+            }
+        } else {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(if (isPrism) Modifier.hazeSource(pickerHazeState) else Modifier),
+                    .padding(innerPadding),
             ) {
-                // 消息区占用剩余高度；输入区是 Column 最后一个固定子项，始终在底栏上方。
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(if (isPrism) Modifier.hazeSource(topBarHazeState) else Modifier),
-                    ) {
-                        when {
-                            state.isLoadingHistory -> {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.align(Alignment.Center),
-                                    color = if (isPrism) {
-                                        PrismTheme.colors.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.primary
-                                    },
-                                )
-                            }
+                    when {
+                        state.isLoadingHistory -> {
+                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                        }
 
-                            state.messages.isEmpty() -> {
-                                if (isPrism) {
-                                    PrismEmptyState(
-                                        icon = Icons.Filled.AutoAwesome,
-                                        title = stringResource(R.string.chat_empty_message),
-                                        modifier = Modifier.align(Alignment.Center),
-                                    )
-                                } else {
-                                    EmptyState(modifier = Modifier.align(Alignment.Center))
-                                }
-                            }
+                        state.messages.isEmpty() -> {
+                            EmptyState(modifier = Modifier.align(Alignment.Center))
+                        }
 
-                            else -> {
-                                MessageList(
-                                    messages = state.messages,
-                                    isPrism = isPrism,
-                                    topPadding = if (isPrism) {
-                                        64.dp + topBarTopInset
-                                    } else {
-                                        12.dp
-                                    },
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
+                        else -> {
+                            MessageList(
+                                messages = state.messages,
+                                isPrism = false,
+                                topPadding = 12.dp,
+                                bottomPadding = 12.dp,
+                                modifier = Modifier.fillMaxSize(),
+                            )
                         }
                     }
-
-                    if (isPrism) {
-                        PrismChatTopBar(
-                            modelLabel = modelLabel,
-                            onOpenPicker = { showModelPicker = true },
-                            quality = glassQuality,
-                            hazeState = topBarHazeState,
-                            modifier = Modifier.align(Alignment.TopCenter),
-                        )
-                    }
                 }
 
-                if (isPrism) {
-                    PrismChatInputBar(
-                        inputText = state.inputText,
-                        isGenerating = state.isGenerating,
-                        isLoadingHistory = state.isLoadingHistory,
-                        onInputChange = onInputChange,
-                        onSend = { onSend(state.inputText) },
-                        onStop = onStop,
-                        // IME insets 仅在此处消费一次，与 Material 分支保持同一约束。
-                        modifier = Modifier.imePadding(),
-                    )
-                } else {
-                    ChatInputBar(
-                        inputText = state.inputText,
-                        isGenerating = state.isGenerating,
-                        isLoadingHistory = state.isLoadingHistory,
-                        onInputChange = onInputChange,
-                        onSend = { onSend(state.inputText) },
-                        onStop = onStop,
-                        modifier = Modifier.imePadding(),
-                    )
-                }
-            }
-
-            if (isPrism && showModelPicker) {
-                PrismPickerOverlay(
-                    providers = state.providers,
-                    activeProviderId = state.activeProviderId,
-                    activeModel = state.activeModel,
-                    quality = glassQuality,
-                    hazeState = pickerHazeState,
-                    onSelect = { providerId, model ->
-                        onModelSelected(providerId, model)
-                        showModelPicker = false
-                    },
-                    onGoSettings = {
-                        showModelPicker = false
-                        onOpenSettings()
-                    },
-                    onDismiss = { showModelPicker = false },
+                ChatInputBar(
+                    inputText = state.inputText,
+                    isGenerating = state.isGenerating,
+                    isLoadingHistory = state.isLoadingHistory,
+                    onInputChange = onInputChange,
+                    onSend = { onSend(state.inputText) },
+                    onStop = onStop,
+                    modifier = Modifier.imePadding(),
                 )
             }
         }
@@ -349,6 +374,7 @@ private fun PrismPickerOverlay(
     activeModel: String?,
     quality: GlassQuality,
     hazeState: HazeState,
+    dockSpace: Dp,
     onSelect: (UUID, String) -> Unit,
     onGoSettings: () -> Unit,
     onDismiss: () -> Unit,
@@ -371,8 +397,10 @@ private fun PrismPickerOverlay(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .padding(horizontal = 12.dp)
+                .padding(bottom = dockSpace + 8.dp)
                 .fillMaxWidth()
-                .fillMaxHeight(0.72f)
+                .fillMaxHeight(0.70f)
                 .prismGlassSurface(
                     quality = quality,
                     hazeState = hazeState,
@@ -427,6 +455,7 @@ private fun MessageList(
     messages: List<UiMessage>,
     isPrism: Boolean,
     topPadding: Dp,
+    bottomPadding: Dp,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -445,7 +474,7 @@ private fun MessageList(
             start = 16.dp,
             end = 16.dp,
             top = topPadding,
-            bottom = 12.dp,
+            bottom = bottomPadding,
         ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {

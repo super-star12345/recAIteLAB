@@ -57,6 +57,7 @@ import com.recaitelab.app.ui.prism.PrismTag
 import com.recaitelab.app.ui.prism.PrismTheme
 import com.recaitelab.app.ui.prism.PrismTopBar
 import com.recaitelab.app.ui.theme.LocalAppDesignSystem
+import com.recaitelab.app.ui.theme.LocalPrismDockSpace
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 
 /**
@@ -78,6 +79,7 @@ fun KnowledgeScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+    val dockSpace = LocalPrismDockSpace.current
 
     LaunchedEffect(state.errorMessage) {
         val message = state.errorMessage ?: return@LaunchedEffect
@@ -173,6 +175,7 @@ fun KnowledgeScreen(
                         KnowledgeList(
                             entries = state.entries,
                             isPrism = isPrism,
+                            dockSpace = dockSpace,
                             onOpenEntry = onOpenEntry,
                             onRequestDelete = onRequestDelete,
                         )
@@ -196,12 +199,18 @@ fun KnowledgeScreen(
 private fun KnowledgeList(
     entries: List<KnowledgeEntryUiModel>,
     isPrism: Boolean,
+    dockSpace: androidx.compose.ui.unit.Dp,
     onOpenEntry: (Long) -> Unit,
     onRequestDelete: (KnowledgeEntryUiModel) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 8.dp,
+            bottom = if (isPrism) 8.dp + dockSpace else 8.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(items = entries, key = { it.id }) { entry ->

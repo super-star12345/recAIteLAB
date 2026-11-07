@@ -27,10 +27,10 @@ val LocalGlassQuality = staticCompositionLocalOf { GlassQuality.STANDARD }
  */
 internal val PrismGlassBlurRadius = 24.dp
 internal val PrismGlassBorderWidth = 1.dp
-internal const val PrismGlassContainerAlpha = 0.38f
-internal const val PrismGlassTintAlpha = 0.52f
-internal const val PrismGlassFallbackAlpha = 0.90f
-internal const val PrismGlassNoiseFactor = 0.06f
+internal const val PrismGlassContainerAlpha = 0.30f
+internal const val PrismGlassTintAlpha = 0.42f
+internal const val PrismGlassFallbackAlpha = 0.86f
+internal const val PrismGlassNoiseFactor = 0.04f
 
 /**
  * 标准玻璃表面：

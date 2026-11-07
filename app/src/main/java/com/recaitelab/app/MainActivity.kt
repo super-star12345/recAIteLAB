@@ -41,6 +41,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -97,6 +98,7 @@ import com.recaitelab.app.ui.settings.SettingsEvent
 import com.recaitelab.app.ui.settings.SettingsScreen
 import com.recaitelab.app.ui.settings.SettingsViewModel
 import com.recaitelab.app.ui.theme.LocalAppDesignSystem
+import com.recaitelab.app.ui.theme.LocalPrismDockSpace
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
@@ -157,7 +159,8 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
         val navBarBottom = WindowInsets.navigationBars
             .asPaddingValues()
             .calculateBottomPadding()
-        val bottomBarSpace = if (showBottomBar) 72.dp + navBarBottom else 0.dp
+        // Dock 自身高度 + 与内容/系统栏的间距；页面据此预留底部空间。
+        val dockSpace = if (showBottomBar) 80.dp + navBarBottom else 0.dp
 
         val backdrop = if (
             currentDestination != null && !currentDestination.isTopLevelDestination()
@@ -168,14 +171,14 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
             PrismTheme.colors.background
         }
 
-        Box(modifier = Modifier.fillMaxSize().background(backdrop)) {
-            NavHost(
-                navController = navController,
-                startDestination = ChatRoute,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = bottomBarSpace)
-                    .hazeSource(hazeState),
+        CompositionLocalProvider(LocalPrismDockSpace provides dockSpace) {
+            Box(modifier = Modifier.fillMaxSize().background(backdrop)) {
+                NavHost(
+                    navController = navController,
+                    startDestination = ChatRoute,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .hazeSource(hazeState),
                 enterTransition = { prismEnter() },
                 exitTransition = { prismExit() },
                 popEnterTransition = { prismPopEnter() },
@@ -195,8 +198,12 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
                     quality = glassQuality,
                     hazeState = hazeState,
                     onSelect = { route -> navController.navigateToTab(route) },
-                    modifier = Modifier.align(Alignment.BottomCenter),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = navBarBottom + 8.dp),
                 )
+            }
             }
         }
     } else {
@@ -422,9 +429,8 @@ private fun PrismBottomBar(
             .prismGlassSurface(
                 quality = quality,
                 hazeState = hazeState,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                shape = PrismTheme.shapes.large,
             )
-            .navigationBarsPadding()
             .padding(horizontal = 8.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,

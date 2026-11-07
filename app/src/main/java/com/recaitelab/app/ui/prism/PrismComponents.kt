@@ -215,7 +215,7 @@ fun PrismTopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val colors = PrismTheme.colors
-    Surface(modifier = modifier.fillMaxWidth(), color = colors.background) {
+    Box(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .statusBarsPadding()
