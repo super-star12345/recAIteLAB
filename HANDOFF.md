@@ -21,9 +21,9 @@
 | 基线截图 | **10 张已完成**，已按修复后界面重拍（完整 1440×3168）→ `docs/baseline/screenshots/` |
 | 下一阶段 | Prism Glass **T1：双主题架构 + 静态预览** |
 
-**推送状态**：本地 `main` 领先 `origin/main` **1 个提交**（`f8d96e0` 对话页 Markdown 标题紧凑化，T0 前置小修）。
-`origin/main`（`dfdbd54`）已包含 4.5.1 全部功能、README 与 GPLv3 LICENSE。`feature/prism-glass` 尚未推送。
-网络可访问 GitHub 后执行 `git push origin main`（或先 push 分支）。
+**推送状态**：`feature/prism-glass` **已推送**（`origin/feature/prism-glass`，2026-11-07）。
+本地 `main` 仍领先 `origin/main` **1 个提交**（`f8d96e0` 对话页 Markdown 标题紧凑化，T0 前置小修），尚未推送。
+`origin/main`（`dfdbd54`）已包含 4.5.1 全部功能、README 与 GPLv3 LICENSE。
 
 **重要**：
 - `local.properties` 里仍有真实 DeepSeek Key（**不要读取、打印或提交**）。
@@ -357,7 +357,8 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
   - 文档：`docs/prism-theme-baseline.md`、`docs/baseline/screenshots/`（10 张 PNG，已重拍为修复后状态）
 - 忽略：`local.properties`、`keystore.properties`、`*.jks` / `*.keystore`、`build/`、`.gradle/`、`*.apk`、`.idea/`、`.kotlin/`。
 - 提交前扫描源码无 `sk-*` 明文；**不得提交** `local.properties`、debug APK、签名材料。
-- 网络恢复后：`git push origin main`；如需先备份分支：`git push -u origin feature/prism-glass`。
+- 已推送 `feature/prism-glass`（2026-11-07）；本地 `main` 仍领先 `origin/main` 1 个提交，需要时执行 `git push origin main`。
+- 沙箱内 `git push` 会因无法创建管道/调用凭据助手失败（`couldn't create signal pipe`），需要放宽沙箱权限后重试；不要据此判断断网。
 
 ---
 
