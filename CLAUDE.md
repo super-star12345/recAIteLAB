@@ -66,4 +66,6 @@ com.recaitelab.app
 - 每次改完必须保证可编译：执行 `.\gradlew.bat assembleDebug` 并确认成功；失败则修复或明确说明原因，不留半成品。
 - 新功能按「UiState → Repository → 网络/存储 → UI」顺序小步落地，每一步保持可编译。
 - 需求或交互不明确时先提问，不猜测产品行为。
+- **不自动 `git push`**：阶段完成时本地 `git commit` 即可；推送（含首次 `-u`）只在用户明确要求时执行。
+- **不自动更新 `HANDOFF.md`**：仅在用户明确说「交接 / 更新 handoff」时更新；其它任务不要把 HANDOFF 计入改动清单。
 - 环境与工具链结论只写进 `HANDOFF.md`，不在本文件重复。
