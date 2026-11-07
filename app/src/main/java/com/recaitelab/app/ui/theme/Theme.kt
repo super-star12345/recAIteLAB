@@ -1,13 +1,21 @@
 package com.recaitelab.app.ui.theme
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
+import android.view.View
+import android.view.Window
+import android.view.WindowInsetsController
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import com.recaitelab.app.domain.model.AppColorTheme
 import com.recaitelab.app.domain.model.AppearanceMode
 
@@ -36,11 +44,53 @@ fun RecAIteLABTheme(
         colorTheme.schemeFor(darkTheme)
     }
 
+    // 系统栏图标明暗跟随主题，避免浅色主题下白底配白图标（状态栏几乎不可见）。
+    val view = LocalView.current
+    val window = if (view.isInEditMode) null else view.context.findActivity()?.window
+    SideEffect {
+        window?.applySystemBarIconAppearance(darkTheme)
+    }
+
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
         content = content,
     )
+}
+
+/**
+ * 设置系统栏图标的明暗（状态栏 + 导航栏）。
+ *
+ * - 浅色主题：深色图标（`APPEARANCE_LIGHT_*` / `LIGHT_*` flag）；
+ * - 深色主题：浅色图标。
+ *
+ * 只使用平台 API，避免为这一处新增依赖。API 30+ 用 `WindowInsetsController`，
+ * 低版本用已废弃但兼容的 `systemUiVisibility`，并保留其它 flag。
+ */
+@Suppress("DEPRECATION")
+private fun Window.applySystemBarIconAppearance(darkTheme: Boolean) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        val controller = insetsController ?: return
+        val lightBars = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+            WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        controller.setSystemBarsAppearance(if (darkTheme) 0 else lightBars, lightBars)
+    } else {
+        val lightBars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+            View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        val current = decorView.systemUiVisibility
+        decorView.systemUiVisibility = if (darkTheme) {
+            current and lightBars.inv()
+        } else {
+            current or lightBars
+        }
+    }
+}
+
+/** ComposeView 的 context 可能被主题包装过，逐层解包到 Activity。 */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 private fun AppColorTheme.schemeFor(darkTheme: Boolean): ColorScheme = when (this) {

@@ -1,10 +1,10 @@
 package com.recaitelab.app.ui.knowledge
 
 import android.text.format.DateUtils
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Clear
@@ -214,13 +213,13 @@ private fun KnowledgeCard(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+            // tags 可能多于一行：用 FlowRow 换行，与时间分列，避免被时间标签覆盖。
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (entry.tags.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .horizontalScroll(rememberScrollState()),
+                    FlowRow(
+                        modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         entry.tags.forEach { tag -> TagChip(text = tag) }
                     }

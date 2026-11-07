@@ -40,6 +40,13 @@ val LightColorScheme: ColorScheme = lightColorScheme(
     onErrorContainer = Color(0xFF410002),
     outline = Color(0xFF6F7978),
     outlineVariant = Color(0xFFBEC9C8),
+    surfaceBright = Color(0xFFFAFDFB),
+    surfaceDim = Color(0xFFD9DFDD),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF3FAF8),
+    surfaceContainer = Color(0xFFEDF4F2),
+    surfaceContainerHigh = Color(0xFFE7EEEC),
+    surfaceContainerHighest = Color(0xFFE1E8E6),
     scrim = Color(0xFF000000),
 )
 
@@ -72,6 +79,13 @@ val DarkColorScheme: ColorScheme = darkColorScheme(
     onErrorContainer = Color(0xFFFFDAD6),
     outline = Color(0xFF899392),
     outlineVariant = Color(0xFF3F4948),
+    surfaceBright = Color(0xFF393C3C),
+    surfaceDim = Color(0xFF121515),
+    surfaceContainerLowest = Color(0xFF0D1110),
+    surfaceContainerLow = Color(0xFF1D2020),
+    surfaceContainer = Color(0xFF212424),
+    surfaceContainerHigh = Color(0xFF2B2F2E),
+    surfaceContainerHighest = Color(0xFF363939),
     scrim = Color(0xFF000000),
 )
 
@@ -105,6 +119,13 @@ val GreenLightColorScheme: ColorScheme = lightColorScheme(
     onErrorContainer = Color(0xFF410002),
     outline = Color(0xFF74796B),
     outlineVariant = Color(0xFFC4C8B9),
+    surfaceBright = Color(0xFFF8FBF0),
+    surfaceDim = Color(0xFFD8DCC9),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF2F7E8),
+    surfaceContainer = Color(0xFFECF2DF),
+    surfaceContainerHigh = Color(0xFFE6ECD6),
+    surfaceContainerHighest = Color(0xFFE0E6CD),
     scrim = Color(0xFF000000),
 )
 
@@ -137,6 +158,13 @@ val GreenDarkColorScheme: ColorScheme = darkColorScheme(
     onErrorContainer = Color(0xFFFFDAD6),
     outline = Color(0xFF8E9283),
     outlineVariant = Color(0xFF44483D),
+    surfaceBright = Color(0xFF383A31),
+    surfaceDim = Color(0xFF0E100A),
+    surfaceContainerLowest = Color(0xFF0C0E08),
+    surfaceContainerLow = Color(0xFF1A1C14),
+    surfaceContainer = Color(0xFF1E2018),
+    surfaceContainerHigh = Color(0xFF282B22),
+    surfaceContainerHighest = Color(0xFF33362C),
     scrim = Color(0xFF000000),
 )
 
@@ -170,6 +198,13 @@ val BlueLightColorScheme: ColorScheme = lightColorScheme(
     onErrorContainer = Color(0xFF410002),
     outline = Color(0xFF73777F),
     outlineVariant = Color(0xFFC3C6CF),
+    surfaceBright = Color(0xFFF9F9FF),
+    surfaceDim = Color(0xFFD9DAE2),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF3F3FB),
+    surfaceContainer = Color(0xFFEDEDF6),
+    surfaceContainerHigh = Color(0xFFE7E7F0),
+    surfaceContainerHighest = Color(0xFFE1E2EB),
     scrim = Color(0xFF000000),
 )
 
@@ -202,5 +237,12 @@ val BlueDarkColorScheme: ColorScheme = darkColorScheme(
     onErrorContainer = Color(0xFFFFDAD6),
     outline = Color(0xFF8D9199),
     outlineVariant = Color(0xFF43474E),
+    surfaceBright = Color(0xFF393B3D),
+    surfaceDim = Color(0xFF121416),
+    surfaceContainerLowest = Color(0xFF0F1113),
+    surfaceContainerLow = Color(0xFF1A1C1E),
+    surfaceContainer = Color(0xFF1E2022),
+    surfaceContainerHigh = Color(0xFF282A2C),
+    surfaceContainerHighest = Color(0xFF333537),
     scrim = Color(0xFF000000),
 )

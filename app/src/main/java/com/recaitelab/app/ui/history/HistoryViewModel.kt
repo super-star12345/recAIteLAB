@@ -6,6 +6,7 @@ import com.recaitelab.app.data.local.model.ConversationSummary
 import com.recaitelab.app.data.repository.ConversationRepository
 import com.recaitelab.app.data.repository.ErrorMapper
 import com.recaitelab.app.data.repository.KnowledgeOrganizer
+import com.recaitelab.app.ui.common.markdownToPreview
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -195,11 +196,8 @@ class HistoryViewModel(
         HistoryConversationUiModel(
             id = id,
             title = title,
-            preview = lastMessage
-                ?.trim()
-                ?.replace(WHITESPACE_REGEX, " ")
-                ?.take(PREVIEW_MAX_LENGTH)
-                .orEmpty(),
+            // 列表预览只显示纯文本，避免 Markdown 标记破坏可读性。
+            preview = markdownToPreview(lastMessage.orEmpty(), PREVIEW_MAX_LENGTH),
             updatedAt = updatedAt,
         )
 
@@ -207,6 +205,5 @@ class HistoryViewModel(
         const val TAG: String = "HistoryViewModel"
         const val MAX_TITLE_LENGTH: Int = 40
         const val PREVIEW_MAX_LENGTH: Int = 80
-        val WHITESPACE_REGEX: Regex = Regex("\\s+")
     }
 }
