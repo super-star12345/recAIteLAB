@@ -4,33 +4,61 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,7 +66,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.recaitelab.app.di.AppContainer
+import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.AppearanceMode
+import com.recaitelab.app.domain.model.GlassQuality
 import com.recaitelab.app.ui.chat.ChatScreen
 import com.recaitelab.app.ui.chat.ChatViewModel
 import com.recaitelab.app.ui.history.HistoryScreen
@@ -55,13 +85,22 @@ import com.recaitelab.app.ui.navigation.SettingsAppearanceRoute
 import com.recaitelab.app.ui.navigation.SettingsModelsRoute
 import com.recaitelab.app.ui.navigation.SettingsPrismRoute
 import com.recaitelab.app.ui.navigation.SettingsRoute
+import com.recaitelab.app.ui.prism.LocalGlassQuality
+import com.recaitelab.app.ui.prism.PrismMotion
 import com.recaitelab.app.ui.prism.PrismPreviewScreen
+import com.recaitelab.app.ui.prism.PrismTheme
+import com.recaitelab.app.ui.prism.prismGlassSurface
+import com.recaitelab.app.ui.prism.prismPressFeedback
 import com.recaitelab.app.ui.settings.AppearanceSettingsScreen
 import com.recaitelab.app.ui.settings.ModelSettingsScreen
 import com.recaitelab.app.ui.settings.SettingsEvent
 import com.recaitelab.app.ui.settings.SettingsScreen
 import com.recaitelab.app.ui.settings.SettingsViewModel
+import com.recaitelab.app.ui.theme.LocalAppDesignSystem
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,6 +115,7 @@ class MainActivity : ComponentActivity() {
                 designSystem = settingsState.designSystem,
                 prismColorStyle = settingsState.prismColorStyle,
                 prismSeedColor = settingsState.prismSeedColor,
+                prismGlassQuality = settingsState.glassQuality,
             ) {
                 AppRoot(settingsViewModel = settingsViewModel)
             }
@@ -88,6 +128,8 @@ class MainActivity : ComponentActivity() {
  *
  * ViewModel 提升到 Activity 作用域，避免 Tab 切换（destination 被 saveState 移出组合）
  * 时丢失聊天草稿、生成任务与设置表单；NavHost 自身负责保存/恢复各 Tab 的 Compose 状态。
+ *
+ * PRISM_GLASS 模式使用自定义转场与玻璃底栏；MATERIAL_3 模式保持原 Scaffold + NavigationBar。
  */
 @Composable
 private fun AppRoot(settingsViewModel: SettingsViewModel) {
@@ -107,119 +149,324 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
         }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        // 顶栏/底栏的 insets 由各页面自己的 Scaffold 与 NavigationBar 处理，外层不再重复加。
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
+    val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+
+    if (isPrism) {
+        val glassQuality = LocalGlassQuality.current
+        val hazeState = rememberHazeState(blurEnabled = glassQuality == GlassQuality.STANDARD)
+        val navBarBottom = WindowInsets.navigationBars
+            .asPaddingValues()
+            .calculateBottomPadding()
+        val bottomBarSpace = if (showBottomBar) 72.dp + navBarBottom else 0.dp
+
+        val backdrop = if (
+            currentDestination != null && !currentDestination.isTopLevelDestination()
+        ) {
+            // 二级页推入时用黑色底承托 10% 暗化；Tab 间 fade-through 使用主题底色避免闪黑。
+            Color.Black
+        } else {
+            PrismTheme.colors.background
+        }
+
+        Box(modifier = Modifier.fillMaxSize().background(backdrop)) {
+            NavHost(
+                navController = navController,
+                startDestination = ChatRoute,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = bottomBarSpace)
+                    .hazeSource(hazeState),
+                enterTransition = { prismEnter() },
+                exitTransition = { prismExit() },
+                popEnterTransition = { prismPopEnter() },
+                popExitTransition = { prismPopExit() },
+            ) {
+                appDestinations(
+                    navController = navController,
+                    settingsViewModel = settingsViewModel,
+                    chatViewModel = chatViewModel,
+                    historyViewModel = historyViewModel,
+                    knowledgeViewModel = knowledgeViewModel,
+                )
+            }
             if (showBottomBar) {
-                NavigationBar {
-                    topLevelTabs.forEach { tab ->
-                        val selected = currentDestination
-                            ?.hierarchy
-                            ?.any { destination -> destination.hasRoute(tab.route::class) }
-                            ?: (tab.route == ChatRoute)
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                if (!selected) {
-                                    navController.navigateToTab(tab.route)
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = tab.icon,
-                                    contentDescription = null,
-                                )
-                            },
-                            label = { Text(text = stringResource(tab.labelRes)) },
-                        )
+                PrismBottomBar(
+                    selectedDestination = currentDestination,
+                    quality = glassQuality,
+                    hazeState = hazeState,
+                    onSelect = { route -> navController.navigateToTab(route) },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
+        }
+    } else {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            // 顶栏/底栏的 insets 由各页面自己的 Scaffold 与 NavigationBar 处理，外层不再重复加。
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            bottomBar = {
+                if (showBottomBar) {
+                    NavigationBar {
+                        topLevelTabs.forEach { tab ->
+                            val selected = currentDestination
+                                ?.hierarchy
+                                ?.any { destination -> destination.hasRoute(tab.route::class) }
+                                ?: (tab.route == ChatRoute)
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = {
+                                    if (!selected) {
+                                        navController.navigateToTab(tab.route)
+                                    }
+                                },
+                                icon = {
+                                    Icon(
+                                        imageVector = tab.icon,
+                                        contentDescription = null,
+                                    )
+                                },
+                                label = { Text(text = stringResource(tab.labelRes)) },
+                            )
+                        }
                     }
                 }
-            }
-        },
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = ChatRoute,
-            modifier = Modifier
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding),
-        ) {
-            composable<ChatRoute> {
-                ChatDestination(
-                    viewModel = chatViewModel,
-                    onOpenSettings = { navController.navigateToTab(SettingsRoute) },
-                )
-            }
-            composable<HistoryRoute> {
-                HistoryDestination(
-                    historyViewModel = historyViewModel,
+            },
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = ChatRoute,
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding),
+            ) {
+                appDestinations(
+                    navController = navController,
+                    settingsViewModel = settingsViewModel,
                     chatViewModel = chatViewModel,
-                    onOpenChat = { navController.navigateToTab(ChatRoute) },
-                    onOpenKnowledge = { navController.navigateToTab(KnowledgeRoute) },
+                    historyViewModel = historyViewModel,
+                    knowledgeViewModel = knowledgeViewModel,
                 )
             }
-            composable<KnowledgeRoute> {
-                KnowledgeDestination(
-                    viewModel = knowledgeViewModel,
-                    onOpenEntry = { entryId ->
-                        navController.navigate(KnowledgeDetailRoute(entryId))
-                    },
-                )
-            }
-            composable<KnowledgeDetailRoute> { backStackEntry ->
-                val route = backStackEntry.toRoute<KnowledgeDetailRoute>()
-                val detailViewModel: KnowledgeDetailViewModel = viewModel(
-                    factory = knowledgeDetailViewModelFactory(route.entryId),
-                )
-                KnowledgeDetailDestination(
-                    viewModel = detailViewModel,
-                    onBack = { navController.popBackStack() },
-                    onOpenSourceConversation = { conversationId ->
-                        chatViewModel.openConversation(conversationId)
-                        navController.popBackStack()
-                        navController.navigateToTab(ChatRoute)
-                    },
-                )
-            }
-            composable<SettingsRoute> {
-                SettingsDestination(
-                    viewModel = settingsViewModel,
-                    onOpenAppearance = { navController.navigate(SettingsAppearanceRoute) },
-                    onOpenModels = { navController.navigate(SettingsModelsRoute) },
-                    onOpenPrismPreview = { navController.navigate(SettingsPrismRoute) },
-                )
-            }
-            composable<SettingsAppearanceRoute> {
-                AppearanceSettingsDestination(
-                    viewModel = settingsViewModel,
-                    onBack = { navController.popBackStack() },
-                )
-            }
-            composable<SettingsModelsRoute> {
-                ModelSettingsDestination(
-                    viewModel = settingsViewModel,
-                    onBack = { navController.popBackStack() },
-                )
-            }
-            composable<SettingsPrismRoute> {
-                val state by settingsViewModel.uiState.collectAsState()
-                val isDark = when (state.appearanceMode) {
-                    AppearanceMode.SYSTEM -> isSystemInDarkTheme()
-                    AppearanceMode.LIGHT -> false
-                    AppearanceMode.DARK -> true
+        }
+    }
+}
+
+/** 四个一级 Tab 与二级页共用的导航图。 */
+private fun NavGraphBuilder.appDestinations(
+    navController: NavHostController,
+    settingsViewModel: SettingsViewModel,
+    chatViewModel: ChatViewModel,
+    historyViewModel: HistoryViewModel,
+    knowledgeViewModel: KnowledgeViewModel,
+) {
+    composable<ChatRoute> {
+        ChatDestination(
+            viewModel = chatViewModel,
+            onOpenSettings = { navController.navigateToTab(SettingsRoute) },
+        )
+    }
+    composable<HistoryRoute> {
+        HistoryDestination(
+            historyViewModel = historyViewModel,
+            chatViewModel = chatViewModel,
+            onOpenChat = { navController.navigateToTab(ChatRoute) },
+            onOpenKnowledge = { navController.navigateToTab(KnowledgeRoute) },
+        )
+    }
+    composable<KnowledgeRoute> {
+        KnowledgeDestination(
+            viewModel = knowledgeViewModel,
+            onOpenEntry = { entryId ->
+                navController.navigate(KnowledgeDetailRoute(entryId))
+            },
+        )
+    }
+    composable<KnowledgeDetailRoute> { backStackEntry ->
+        val route = backStackEntry.toRoute<KnowledgeDetailRoute>()
+        val detailViewModel: KnowledgeDetailViewModel = viewModel(
+            factory = knowledgeDetailViewModelFactory(route.entryId),
+        )
+        KnowledgeDetailDestination(
+            viewModel = detailViewModel,
+            onBack = { navController.popBackStack() },
+            onOpenSourceConversation = { conversationId ->
+                chatViewModel.openConversation(conversationId)
+                navController.popBackStack()
+                navController.navigateToTab(ChatRoute)
+            },
+        )
+    }
+    composable<SettingsRoute> {
+        SettingsDestination(
+            viewModel = settingsViewModel,
+            onOpenAppearance = { navController.navigate(SettingsAppearanceRoute) },
+            onOpenModels = { navController.navigate(SettingsModelsRoute) },
+            onOpenPrismPreview = { navController.navigate(SettingsPrismRoute) },
+        )
+    }
+    composable<SettingsAppearanceRoute> {
+        AppearanceSettingsDestination(
+            viewModel = settingsViewModel,
+            onBack = { navController.popBackStack() },
+        )
+    }
+    composable<SettingsModelsRoute> {
+        ModelSettingsDestination(
+            viewModel = settingsViewModel,
+            onBack = { navController.popBackStack() },
+        )
+    }
+    composable<SettingsPrismRoute> {
+        val state by settingsViewModel.uiState.collectAsState()
+        val isDark = when (state.appearanceMode) {
+            AppearanceMode.SYSTEM -> isSystemInDarkTheme()
+            AppearanceMode.LIGHT -> false
+            AppearanceMode.DARK -> true
+        }
+        PrismPreviewScreen(
+            initialStyle = state.prismColorStyle,
+            seedColorArgb = state.prismSeedColor,
+            initialDark = isDark,
+            glassQuality = state.glassQuality,
+            onGlassQualityChange = { quality ->
+                settingsViewModel.onEvent(SettingsEvent.GlassQualityChange(quality))
+            },
+            onBack = { navController.popBackStack() },
+        )
+    }
+}
+
+/** Prism 一级 Tab 转场：轻量 fade-through，不做整屏横向滑动。 */
+private val prismTransitionMotion = PrismMotion()
+
+private fun prismSpringInt(): SpringSpec<IntOffset> = spring(
+    dampingRatio = prismTransitionMotion.pageSpringDamping,
+    stiffness = prismTransitionMotion.pageSpringStiffness,
+)
+
+private fun prismSpringFloat(): SpringSpec<Float> = spring(
+    dampingRatio = prismTransitionMotion.pageSpringDamping,
+    stiffness = prismTransitionMotion.pageSpringStiffness,
+)
+
+private fun NavDestination.isTopLevelDestination(): Boolean =
+    topLevelTabs.any { tab -> hasRoute(tab.route::class) }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.prismEnter(): EnterTransition {
+    val targetTab = targetState.destination.isTopLevelDestination()
+    val initialTab = initialState.destination.isTopLevelDestination()
+    return when {
+        targetTab && initialTab -> fadeIn(animationSpec = tween(200))
+        targetTab -> slideInHorizontally(
+            animationSpec = prismSpringInt(),
+            initialOffsetX = { fullWidth -> -fullWidth * 3 / 10 },
+        ) + fadeIn(animationSpec = prismSpringFloat(), initialAlpha = 0.9f)
+
+        else -> slideInHorizontally(
+            animationSpec = prismSpringInt(),
+            initialOffsetX = { fullWidth -> fullWidth },
+        )
+    }
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.prismExit(): ExitTransition {
+    val targetTab = targetState.destination.isTopLevelDestination()
+    val initialTab = initialState.destination.isTopLevelDestination()
+    return when {
+        targetTab && initialTab -> fadeOut(animationSpec = tween(160))
+        else -> slideOutHorizontally(
+            animationSpec = prismSpringInt(),
+            targetOffsetX = { fullWidth -> -fullWidth * 3 / 10 },
+        ) + fadeOut(animationSpec = prismSpringFloat(), targetAlpha = 0.9f)
+    }
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.prismPopEnter(): EnterTransition {
+    return if (targetState.destination.isTopLevelDestination()) {
+        slideInHorizontally(
+            animationSpec = prismSpringInt(),
+            initialOffsetX = { fullWidth -> -fullWidth * 3 / 10 },
+        ) + fadeIn(animationSpec = prismSpringFloat(), initialAlpha = 0.9f)
+    } else {
+        slideInHorizontally(
+            animationSpec = prismSpringInt(),
+            initialOffsetX = { fullWidth -> fullWidth },
+        )
+    }
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.prismPopExit(): ExitTransition {
+    return if (initialState.destination.isTopLevelDestination()) {
+        fadeOut(animationSpec = tween(160))
+    } else {
+        slideOutHorizontally(
+            animationSpec = prismSpringInt(),
+            targetOffsetX = { fullWidth -> fullWidth },
+        )
+    }
+}
+
+/** Prism 玻璃底栏：与内容共用 HazeState，只有这一层使用背景模糊。 */
+@Composable
+private fun PrismBottomBar(
+    selectedDestination: NavDestination?,
+    quality: GlassQuality,
+    hazeState: HazeState,
+    onSelect: (Any) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = PrismTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .prismGlassSurface(
+                quality = quality,
+                hazeState = hazeState,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            )
+            .navigationBarsPadding()
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        topLevelTabs.forEach { tab ->
+            val selected = selectedDestination
+                ?.hierarchy
+                ?.any { destination -> destination.hasRoute(tab.route::class) }
+                ?: (tab.route == ChatRoute)
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .prismPressFeedback(onClick = { if (!selected) onSelect(tab.route) }),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                androidx.compose.foundation.layout.Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Surface(
+                        shape = PrismTheme.shapes.pill,
+                        color = if (selected) colors.primaryContainer else Color.Transparent,
+                        contentColor = if (selected) {
+                            colors.onPrimaryContainer
+                        } else {
+                            colors.onSurfaceVariant
+                        },
+                    ) {
+                        Icon(
+                            imageVector = tab.icon,
+                            contentDescription = null,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                        )
+                    }
+                    Text(
+                        text = stringResource(tab.labelRes),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (selected) colors.onSurface else colors.onSurfaceVariant,
+                        maxLines = 1,
+                    )
                 }
-                PrismPreviewScreen(
-                    initialStyle = state.prismColorStyle,
-                    seedColorArgb = state.prismSeedColor,
-                    initialDark = isDark,
-                    glassQuality = state.glassQuality,
-                    onGlassQualityChange = { quality ->
-                        settingsViewModel.onEvent(SettingsEvent.GlassQualityChange(quality))
-                    },
-                    onBack = { navController.popBackStack() },
-                )
             }
         }
     }

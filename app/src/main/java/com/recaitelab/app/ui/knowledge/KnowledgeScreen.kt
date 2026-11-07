@@ -47,6 +47,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.recaitelab.app.R
+import com.recaitelab.app.domain.model.AppDesignSystem
+import com.recaitelab.app.ui.prism.PrismCard
+import com.recaitelab.app.ui.prism.PrismConfirmDialog
+import com.recaitelab.app.ui.prism.PrismEmptyState
+import com.recaitelab.app.ui.prism.PrismIconButton
+import com.recaitelab.app.ui.prism.PrismSearchField
+import com.recaitelab.app.ui.prism.PrismTag
+import com.recaitelab.app.ui.prism.PrismTheme
+import com.recaitelab.app.ui.prism.PrismTopBar
+import com.recaitelab.app.ui.theme.LocalAppDesignSystem
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 
 /**
@@ -67,6 +77,7 @@ fun KnowledgeScreen(
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
 
     LaunchedEffect(state.errorMessage) {
         val message = state.errorMessage ?: return@LaunchedEffect
@@ -76,8 +87,17 @@ fun KnowledgeScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = if (isPrism) {
+            PrismTheme.colors.background
+        } else {
+            MaterialTheme.colorScheme.background
+        },
         topBar = {
-            TopAppBar(title = { Text(text = stringResource(R.string.tab_knowledge)) })
+            if (isPrism) {
+                PrismTopBar(title = stringResource(R.string.tab_knowledge))
+            } else {
+                TopAppBar(title = { Text(text = stringResource(R.string.tab_knowledge)) })
+            }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
@@ -86,31 +106,43 @@ fun KnowledgeScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = onQueryChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                singleLine = true,
-                placeholder = { Text(text = stringResource(R.string.knowledge_search_hint)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Search,
-                        contentDescription = null,
-                    )
-                },
-                trailingIcon = {
-                    if (state.query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }) {
-                            Icon(
-                                imageVector = Icons.Filled.Clear,
-                                contentDescription = stringResource(R.string.knowledge_search_clear),
-                            )
+            if (isPrism) {
+                PrismSearchField(
+                    value = state.query,
+                    onValueChange = onQueryChange,
+                    hint = stringResource(R.string.knowledge_search_hint),
+                    clearDescription = stringResource(R.string.knowledge_search_clear),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            } else {
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    singleLine = true,
+                    placeholder = { Text(text = stringResource(R.string.knowledge_search_hint)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = null,
+                        )
+                    },
+                    trailingIcon = {
+                        if (state.query.isNotEmpty()) {
+                            IconButton(onClick = { onQueryChange("") }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Clear,
+                                    contentDescription = stringResource(R.string.knowledge_search_clear),
+                                )
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -119,12 +151,20 @@ fun KnowledgeScreen(
             ) {
                 when {
                     state.isLoading -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                            color = if (isPrism) {
+                                PrismTheme.colors.primary
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            },
+                        )
                     }
 
                     state.entries.isEmpty() -> {
                         EmptyKnowledgeState(
                             isSearching = state.query.isNotBlank(),
+                            isPrism = isPrism,
                             modifier = Modifier.align(Alignment.Center),
                         )
                     }
@@ -132,6 +172,7 @@ fun KnowledgeScreen(
                     else -> {
                         KnowledgeList(
                             entries = state.entries,
+                            isPrism = isPrism,
                             onOpenEntry = onOpenEntry,
                             onRequestDelete = onRequestDelete,
                         )
@@ -144,6 +185,7 @@ fun KnowledgeScreen(
     state.pendingDelete?.let { target ->
         DeleteKnowledgeDialog(
             title = target.title,
+            isPrism = isPrism,
             onConfirm = onConfirmDelete,
             onDismiss = onCancelDelete,
         )
@@ -153,6 +195,7 @@ fun KnowledgeScreen(
 @Composable
 private fun KnowledgeList(
     entries: List<KnowledgeEntryUiModel>,
+    isPrism: Boolean,
     onOpenEntry: (Long) -> Unit,
     onRequestDelete: (KnowledgeEntryUiModel) -> Unit,
 ) {
@@ -162,11 +205,85 @@ private fun KnowledgeList(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(items = entries, key = { it.id }) { entry ->
-            KnowledgeCard(
-                entry = entry,
-                onOpen = { onOpenEntry(entry.id) },
-                onDelete = { onRequestDelete(entry) },
-            )
+            if (isPrism) {
+                PrismKnowledgeCard(
+                    entry = entry,
+                    onOpen = { onOpenEntry(entry.id) },
+                    onDelete = { onRequestDelete(entry) },
+                )
+            } else {
+                KnowledgeCard(
+                    entry = entry,
+                    onOpen = { onOpenEntry(entry.id) },
+                    onDelete = { onRequestDelete(entry) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrismKnowledgeCard(
+    entry: KnowledgeEntryUiModel,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val colors = PrismTheme.colors
+    PrismCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onOpen,
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    text = entry.title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = colors.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                PrismIconButton(
+                    icon = Icons.Filled.Delete,
+                    contentDescription = stringResource(
+                        R.string.knowledge_delete_content_description,
+                    ),
+                    onClick = onDelete,
+                    tint = colors.onSurfaceVariant,
+                )
+            }
+
+            if (entry.summary.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = entry.summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (entry.tags.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        entry.tags.forEach { tag -> PrismTag(text = tag) }
+                    }
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = formatUpdatedAt(entry.updatedAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -255,8 +372,22 @@ private fun TagChip(text: String) {
 @Composable
 private fun EmptyKnowledgeState(
     isSearching: Boolean,
+    isPrism: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val message = stringResource(
+        if (isSearching) R.string.knowledge_search_empty else R.string.knowledge_empty,
+    )
+
+    if (isPrism) {
+        PrismEmptyState(
+            icon = Icons.Filled.AutoStories,
+            title = message,
+            modifier = modifier,
+        )
+        return
+    }
+
     Column(
         modifier = modifier.padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -269,9 +400,7 @@ private fun EmptyKnowledgeState(
             tint = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = stringResource(
-                if (isSearching) R.string.knowledge_search_empty else R.string.knowledge_empty,
-            ),
+            text = message,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -282,9 +411,22 @@ private fun EmptyKnowledgeState(
 @Composable
 private fun DeleteKnowledgeDialog(
     title: String,
+    isPrism: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    if (isPrism) {
+        PrismConfirmDialog(
+            title = stringResource(R.string.knowledge_delete_title),
+            message = stringResource(R.string.knowledge_delete_message, title),
+            confirmText = stringResource(R.string.settings_delete),
+            dismissText = stringResource(R.string.settings_cancel),
+            onConfirm = onConfirm,
+            onDismiss = onDismiss,
+        )
+        return
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.knowledge_delete_title)) },

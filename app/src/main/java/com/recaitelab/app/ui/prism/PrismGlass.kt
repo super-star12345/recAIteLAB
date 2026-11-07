@@ -2,7 +2,6 @@ package com.recaitelab.app.ui.prism
 
 import android.os.Build
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,11 +29,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
@@ -43,23 +40,13 @@ import androidx.compose.ui.unit.dp
 import com.recaitelab.app.R
 import com.recaitelab.app.domain.model.GlassQuality
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 
 /*
- * Prism 标准玻璃（STANDARD）参数：集中在此，方便 T4 铺开时复用。
+ * 预览页玻璃演示；共享参数见 PrismGlassSurface.kt。
  * 不提供 Ultra 参数——本阶段 Ultra 未实现。
  */
-private val GlassBlurRadius = 24.dp
-private val GlassBorderWidth = 1.dp
-private val GlassShadowElevation = 8.dp
-private val GlassContainerAlpha = 0.38f
-private val GlassTintAlpha = 0.52f
-private val GlassFallbackAlpha = 0.90f
-private const val GlassNoiseFactor = 0.06f
 private val GlassTopBarHeight = 56.dp
 private val GlassBottomBarHeight = 72.dp
 
@@ -83,7 +70,6 @@ fun PrismGlassDemo(
     // STANDARD 在低版本仍走 Haze 的 fallback scrim（frost/tint），而不是直接变不透明。
     val useHaze = quality == GlassQuality.STANDARD
     val hazeState = rememberHazeState(blurEnabled = useHaze && blurSupported)
-    val hazeStyle = rememberGlassStyle(colors)
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -131,7 +117,6 @@ fun PrismGlassDemo(
                     .glassSurface(
                         glassEnabled = useHaze,
                         hazeState = hazeState,
-                        style = hazeStyle,
                         shape = topShape,
                     )
                     .padding(horizontal = 14.dp),
@@ -164,7 +149,6 @@ fun PrismGlassDemo(
                     .glassSurface(
                         glassEnabled = useHaze,
                         hazeState = hazeState,
-                        style = hazeStyle,
                         shape = bottomShape,
                     )
                     .padding(horizontal = 8.dp),
@@ -180,30 +164,17 @@ fun PrismGlassDemo(
     }
 }
 
-/** 玻璃 / 不透明表面两种形态；统一 1dp 描边与阴影。 */
+/** 玻璃 / 不透明表面两种形态；参数统一走 [prismGlassSurface]。 */
 @Composable
 private fun Modifier.glassSurface(
     glassEnabled: Boolean,
     hazeState: HazeState,
-    style: HazeStyle,
     shape: Shape,
-): Modifier {
-    val colors = PrismTheme.colors
-    val highlight = Color.White.copy(alpha = if (colors.isDark) 0.20f else 0.60f)
-    return if (glassEnabled) {
-        this
-            .shadow(elevation = GlassShadowElevation, shape = shape, clip = false)
-            .clip(shape)
-            .hazeEffect(state = hazeState, style = style)
-            .border(GlassBorderWidth, highlight, shape)
-    } else {
-        this
-            .shadow(elevation = 2.dp, shape = shape, clip = false)
-            .clip(shape)
-            .background(colors.surfaceHigh)
-            .border(GlassBorderWidth, colors.outlineVariant, shape)
-    }
-}
+): Modifier = prismGlassSurface(
+    quality = if (glassEnabled) GlassQuality.STANDARD else GlassQuality.OFF,
+    hazeState = hazeState,
+    shape = shape,
+)
 
 /** 背景源：滚动内容。玻璃关闭时也保留（只是不加 hazeSource）。 */
 @Composable
@@ -292,17 +263,6 @@ private fun GlassBottomItem(
             overflow = TextOverflow.Clip,
         )
     }
-}
-
-@Composable
-private fun rememberGlassStyle(colors: PrismColors): HazeStyle = remember(colors) {
-    HazeStyle(
-        backgroundColor = colors.surface.copy(alpha = GlassContainerAlpha),
-        tints = listOf(HazeTint(colors.surface.copy(alpha = GlassTintAlpha))),
-        blurRadius = GlassBlurRadius,
-        noiseFactor = GlassNoiseFactor,
-        fallbackTint = HazeTint(colors.surface.copy(alpha = GlassFallbackAlpha)),
-    )
 }
 
 @Composable

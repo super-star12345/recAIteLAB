@@ -2,7 +2,9 @@ package com.recaitelab.app.ui.prism
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
@@ -16,11 +18,15 @@ import androidx.compose.ui.graphics.graphicsLayer
  *
  * 只修改 `graphicsLayer`（绘制属性），不触发布局；颜色/时长来自 [PrismMotion]。
  * Compose 动画会跟随系统「动画时长缩放」，系统关闭动画时会直接落到终值。
+ *
+ * @param onLongClick 非空时使用 combinedClickable（历史列表长按删除等）。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Modifier.prismPressFeedback(
     enabled: Boolean = true,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -43,16 +49,28 @@ fun Modifier.prismPressFeedback(
         label = "prismPressAlpha",
     )
 
+    val clickModifier = if (onLongClick != null) {
+        Modifier.combinedClickable(
+            interactionSource = interactionSource,
+            indication = null,
+            enabled = enabled,
+            onLongClick = onLongClick,
+            onClick = onClick,
+        )
+    } else {
+        Modifier.clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            enabled = enabled,
+            onClick = onClick,
+        )
+    }
+
     return this
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
             this.alpha = alpha
         }
-        .clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            enabled = enabled,
-            onClick = onClick,
-        )
+        .then(clickModifier)
 }

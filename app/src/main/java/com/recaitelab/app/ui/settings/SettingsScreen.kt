@@ -47,17 +47,22 @@ import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.AppearanceMode
 import com.recaitelab.app.domain.model.GlassQuality
 import com.recaitelab.app.domain.model.PrismColorStyle
+import com.recaitelab.app.ui.prism.PrismCard
+import com.recaitelab.app.ui.prism.PrismChip
+import com.recaitelab.app.ui.prism.PrismListRow
 import com.recaitelab.app.ui.prism.PrismSeedPresets
+import com.recaitelab.app.ui.prism.PrismTheme
+import com.recaitelab.app.ui.prism.PrismTopBar
+import com.recaitelab.app.ui.prism.prismPressFeedback
+import com.recaitelab.app.ui.theme.LocalAppDesignSystem
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import java.util.UUID
 
 /**
  * 设置首页（一级 Tab）：外观、界面风格、Prism 选项与模型管理入口。
  *
- * - 外观 -> [AppearanceSettingsScreen]：外观模式、配色方案、动态取色；
- * - 界面风格：Material 3 / Prism Glass；选 Prism 后展开配色风格、种子色、玻璃质量；
- * - Prism 主题预览 -> 静态样式预览（T1，不接业务数据）；
- * - 模型选择 -> [ModelSettingsScreen]：Provider / 模型管理与添加/编辑。
+ * PRISM_GLASS 模式使用 Prism 组件（PrismCard / PrismListRow / PrismChip）；
+ * MATERIAL_3 模式保持原 Material 3 布局。两种模式共用同一 state 与事件回调。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +74,8 @@ fun SettingsScreen(
     onOpenPrismPreview: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+
     val modeLabel = stringResource(state.appearanceMode.labelRes())
     val colorLabel = stringResource(state.colorTheme.labelRes())
     val dynamicLabel = stringResource(R.string.settings_dynamic_color)
@@ -89,8 +96,17 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = if (isPrism) {
+            PrismTheme.colors.background
+        } else {
+            MaterialTheme.colorScheme.background
+        },
         topBar = {
-            TopAppBar(title = { Text(text = stringResource(R.string.settings_title)) })
+            if (isPrism) {
+                PrismTopBar(title = stringResource(R.string.settings_title))
+            } else {
+                TopAppBar(title = { Text(text = stringResource(R.string.settings_title)) })
+            }
         },
     ) { innerPadding ->
         Column(
@@ -100,31 +116,108 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
         ) {
-            SettingsMenuRow(
-                icon = Icons.Filled.Palette,
-                title = stringResource(R.string.settings_appearance),
-                summary = appearanceSummary,
-                onClick = onOpenAppearance,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            DesignSystemSection(state = state, onEvent = onEvent)
-
-            if (state.designSystem == AppDesignSystem.PRISM_GLASS) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                PrismOptionsSection(state = state, onEvent = onEvent)
-                PrismPreviewRow(onClick = onOpenPrismPreview)
+            if (isPrism) {
+                PrismSettingsContent(
+                    state = state,
+                    appearanceSummary = appearanceSummary,
+                    modelsSummary = modelsSummary,
+                    onOpenAppearance = onOpenAppearance,
+                    onOpenModels = onOpenModels,
+                    onEvent = onEvent,
+                    onOpenPrismPreview = onOpenPrismPreview,
+                )
+            } else {
+                MaterialSettingsContent(
+                    state = state,
+                    appearanceSummary = appearanceSummary,
+                    modelsSummary = modelsSummary,
+                    onOpenAppearance = onOpenAppearance,
+                    onOpenModels = onOpenModels,
+                    onEvent = onEvent,
+                    onOpenPrismPreview = onOpenPrismPreview,
+                )
             }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            SettingsMenuRow(
-                icon = Icons.Filled.Tune,
-                title = stringResource(R.string.settings_models_title),
-                summary = modelsSummary,
-                onClick = onOpenModels,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
+    }
+}
+
+@Composable
+private fun MaterialSettingsContent(
+    state: SettingsUiState,
+    appearanceSummary: String,
+    modelsSummary: String,
+    onOpenAppearance: () -> Unit,
+    onOpenModels: () -> Unit,
+    onEvent: (SettingsEvent) -> Unit,
+    onOpenPrismPreview: () -> Unit,
+) {
+    SettingsMenuRow(
+        icon = Icons.Filled.Palette,
+        title = stringResource(R.string.settings_appearance),
+        summary = appearanceSummary,
+        onClick = onOpenAppearance,
+    )
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    DesignSystemSection(state = state, onEvent = onEvent)
+    if (state.designSystem == AppDesignSystem.PRISM_GLASS) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        PrismOptionsSection(state = state, onEvent = onEvent)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        PreviewEntryRow(onClick = onOpenPrismPreview)
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    SettingsMenuRow(
+        icon = Icons.Filled.Tune,
+        title = stringResource(R.string.settings_models_title),
+        summary = modelsSummary,
+        onClick = onOpenModels,
+    )
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+@Composable
+private fun PrismSettingsContent(
+    state: SettingsUiState,
+    appearanceSummary: String,
+    modelsSummary: String,
+    onOpenAppearance: () -> Unit,
+    onOpenModels: () -> Unit,
+    onEvent: (SettingsEvent) -> Unit,
+    onOpenPrismPreview: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        PrismListRow(
+            icon = Icons.Filled.Palette,
+            title = stringResource(R.string.settings_appearance),
+            summary = appearanceSummary,
+            onClick = onOpenAppearance,
+        )
+
+        PrismCard {
+            DesignSystemSection(state = state, onEvent = onEvent)
+            if (state.designSystem == AppDesignSystem.PRISM_GLASS) {
+                HorizontalDivider(
+                    color = PrismTheme.colors.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                PrismOptionsSection(state = state, onEvent = onEvent)
+                HorizontalDivider(
+                    color = PrismTheme.colors.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                PreviewEntryRow(onClick = onOpenPrismPreview)
+            }
+        }
+
+        PrismListRow(
+            icon = Icons.Filled.Tune,
+            title = stringResource(R.string.settings_models_title),
+            summary = modelsSummary,
+            onClick = onOpenModels,
+        )
     }
 }
 
@@ -144,13 +237,14 @@ private fun DesignSystemSection(
         Text(
             text = stringResource(R.string.settings_design_system),
             style = MaterialTheme.typography.titleSmall,
+            color = if (isPrismMode()) PrismTheme.colors.onSurface else MaterialTheme.colorScheme.onSurface,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AppDesignSystem.entries.forEach { system ->
-                FilterChip(
+                SettingsChoiceChip(
+                    label = stringResource(system.labelRes()),
                     selected = state.designSystem == system,
                     onClick = { onEvent(SettingsEvent.DesignSystemChange(system)) },
-                    label = { Text(text = stringResource(system.labelRes())) },
                 )
             }
         }
@@ -158,7 +252,11 @@ private fun DesignSystemSection(
             Text(
                 text = stringResource(R.string.settings_design_hint),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (isPrismMode()) {
+                    PrismTheme.colors.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
         }
     }
@@ -171,6 +269,14 @@ private fun PrismOptionsSection(
     onEvent: (SettingsEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isPrism = isPrismMode()
+    val titleColor = if (isPrism) PrismTheme.colors.onSurface else MaterialTheme.colorScheme.onSurface
+    val bodyColor = if (isPrism) {
+        PrismTheme.colors.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -180,16 +286,17 @@ private fun PrismOptionsSection(
         Text(
             text = stringResource(R.string.settings_prism_style),
             style = MaterialTheme.typography.titleSmall,
+            color = titleColor,
         )
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PrismColorStyle.entries.forEach { style ->
-                FilterChip(
+                SettingsChoiceChip(
+                    label = stringResource(style.labelRes()),
                     selected = state.prismColorStyle == style,
                     onClick = { onEvent(SettingsEvent.PrismStyleChange(style)) },
-                    label = { Text(text = stringResource(style.labelRes())) },
                 )
             }
         }
@@ -197,9 +304,10 @@ private fun PrismOptionsSection(
         Text(
             text = stringResource(R.string.settings_prism_seed),
             style = MaterialTheme.typography.titleSmall,
+            color = titleColor,
             modifier = Modifier.padding(top = 4.dp),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             PrismSeedPresets.forEach { seed ->
                 val argb = seed.toArgbLong()
                 SeedSwatch(
@@ -213,21 +321,40 @@ private fun PrismOptionsSection(
         Text(
             text = stringResource(R.string.settings_prism_glass_quality),
             style = MaterialTheme.typography.titleSmall,
+            color = titleColor,
             modifier = Modifier.padding(top = 4.dp),
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GlassQuality.entries.forEach { quality ->
-                FilterChip(
+                SettingsChoiceChip(
+                    label = stringResource(quality.labelRes()),
                     selected = state.glassQuality == quality,
                     onClick = { onEvent(SettingsEvent.GlassQualityChange(quality)) },
-                    label = { Text(text = stringResource(quality.labelRes())) },
                 )
             }
         }
         Text(
             text = stringResource(R.string.settings_prism_glass_hint),
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = bodyColor,
+        )
+    }
+}
+
+/** Prism 模式下用 PrismChip，Material 模式保留 FilterChip。 */
+@Composable
+private fun SettingsChoiceChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    if (isPrismMode()) {
+        PrismChip(label = label, selected = selected, onClick = onClick)
+    } else {
+        FilterChip(
+            selected = selected,
+            onClick = onClick,
+            label = { Text(text = label) },
         )
     }
 }
@@ -238,10 +365,12 @@ private fun SeedSwatch(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val borderColor = if (selected) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
-        MaterialTheme.colorScheme.outlineVariant
+    val isPrism = isPrismMode()
+    val borderColor = when {
+        selected && isPrism -> PrismTheme.colors.onSurface
+        selected -> MaterialTheme.colorScheme.onSurface
+        isPrism -> PrismTheme.colors.outlineVariant
+        else -> MaterialTheme.colorScheme.outlineVariant
     }
     // 外层保证 48dp 触控区域，内层是 32dp 的色块。
     Box(
@@ -260,43 +389,82 @@ private fun SeedSwatch(
     }
 }
 
+/** 预览入口：Prism 模式为无边框行（已在外层 PrismCard 内），Material 模式保留旧样式。 */
 @Composable
-private fun PrismPreviewRow(
+private fun PreviewEntryRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Filled.BlurOn,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+    if (isPrismMode()) {
+        val colors = PrismTheme.colors
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .prismPressFeedback(onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = stringResource(R.string.settings_prism_preview),
-                style = MaterialTheme.typography.titleMedium,
+            Icon(
+                imageVector = Icons.Filled.BlurOn,
+                contentDescription = null,
+                tint = colors.primary,
             )
-            Text(
-                text = stringResource(R.string.settings_prism_preview_summary),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_prism_preview),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = colors.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.settings_prism_preview_summary),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
             )
         }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    } else {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.BlurOn,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_prism_preview),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.settings_prism_preview_summary),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -308,6 +476,17 @@ private fun SettingsMenuRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (isPrismMode()) {
+        PrismListRow(
+            icon = icon,
+            title = title,
+            summary = summary,
+            onClick = onClick,
+            modifier = modifier,
+        )
+        return
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -346,6 +525,10 @@ private fun SettingsMenuRow(
     }
 }
 
+@Composable
+private fun isPrismMode(): Boolean =
+    LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+
 /** 把 Compose Color 转成 DataStore 用的无符号 ARGB Long。 */
 internal fun Color.toArgbLong(): Long = toArgb().toLong() and 0xFFFFFFFFL
 
@@ -368,6 +551,34 @@ private fun SettingsScreenPreview() {
                 appearanceMode = AppearanceMode.SYSTEM,
                 colorTheme = AppColorTheme.DEFAULT,
                 dynamicColorEnabled = false,
+                isDynamicColorSupported = true,
+            ),
+            onOpenAppearance = {},
+            onOpenModels = {},
+            onEvent = {},
+            onOpenPrismPreview = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Prism Glass")
+@Composable
+private fun SettingsScreenPrismPreview() {
+    val providerId = UUID.fromString("00000000-0000-0000-0000-000000000002")
+    RecAIteLABTheme(designSystem = AppDesignSystem.PRISM_GLASS) {
+        SettingsScreen(
+            state = SettingsUiState(
+                providers = listOf(
+                    ProviderUiModel(
+                        id = providerId,
+                        name = "DeepSeek",
+                        baseUrl = "https://api.deepseek.com/v1",
+                        selectedModel = "deepseek-flash",
+                    ),
+                ),
+                activeProviderId = providerId,
+                appearanceMode = AppearanceMode.SYSTEM,
+                colorTheme = AppColorTheme.DEFAULT,
                 isDynamicColorSupported = true,
                 designSystem = AppDesignSystem.PRISM_GLASS,
                 prismColorStyle = PrismColorStyle.SOFT,

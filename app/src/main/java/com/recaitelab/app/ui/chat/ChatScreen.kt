@@ -1,21 +1,29 @@
 package com.recaitelab.app.ui.chat
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -52,24 +60,40 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.recaitelab.app.R
+import com.recaitelab.app.domain.model.AppDesignSystem
+import com.recaitelab.app.domain.model.GlassQuality
 import com.recaitelab.app.ui.common.MarkdownText
 import com.recaitelab.app.ui.common.MarkdownTextStyle
 import com.recaitelab.app.ui.common.message
+import com.recaitelab.app.ui.prism.LocalGlassQuality
+import com.recaitelab.app.ui.prism.PrismButton
+import com.recaitelab.app.ui.prism.PrismButtonStyle
+import com.recaitelab.app.ui.prism.PrismEmptyState
+import com.recaitelab.app.ui.prism.PrismTheme
+import com.recaitelab.app.ui.prism.prismGlassSurface
+import com.recaitelab.app.ui.theme.LocalAppDesignSystem
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import java.util.UUID
 import kotlinx.coroutines.launch
 
 /**
  * 单页聊天界面（无状态）：只接收 [ChatUiState] 与事件回调。
  *
- * 业务逻辑在 [ChatViewModel]；这里只做布局与事件上抛。
+ * PRISM_GLASS：顶栏为覆盖在消息列表上的玻璃模型选择栏，模型 Sheet 为同窗口玻璃面板；
+ * MATERIAL_3：保持原 TopAppBar + ModalBottomSheet。
+ * 两种模式的流式、停止、重试、模型切换与会话恢复逻辑完全共用 [ChatViewModel]。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,6 +109,8 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+    val glassQuality = LocalGlassQuality.current
     var showModelPicker by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -94,6 +120,11 @@ fun ChatScreen(
         null -> null
         else -> error.message()
     }
+
+    val hazeEnabled = isPrism && glassQuality == GlassQuality.STANDARD
+    val topBarHazeState = rememberHazeState(blurEnabled = hazeEnabled)
+    val pickerHazeState = rememberHazeState(blurEnabled = hazeEnabled)
+    val topBarTopInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     LaunchedEffect(error, state.canRetry) {
         errorMessage ?: return@LaunchedEffect
@@ -120,89 +151,171 @@ fun ChatScreen(
     }
 
     Scaffold(
-        modifier = modifier
-            .fillMaxSize(),
-        // 状态栏由 TopAppBar 处理；底部安全区由外层 NavigationBar 处理。
+        modifier = modifier.fillMaxSize(),
+        containerColor = if (isPrism) {
+            PrismTheme.colors.background
+        } else {
+            MaterialTheme.colorScheme.background
+        },
+        // 状态栏由顶栏处理；底部安全区由外层导航处理。
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
-                title = {
-                    Column(
-                        modifier = Modifier
-                            .clip(MaterialTheme.shapes.small)
-                            .clickable(
-                                onClickLabel = stringResource(R.string.chat_model_picker_title),
-                                onClick = { showModelPicker = true },
-                            )
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (!isPrism) {
+                TopAppBar(
+                    title = {
+                        Column(
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable(
+                                    onClickLabel = stringResource(R.string.chat_model_picker_title),
+                                    onClick = { showModelPicker = true },
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = modelLabel,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Icon(
+                                    imageVector = Icons.Filled.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             Text(
-                                text = modelLabel,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Icon(
-                                imageVector = Icons.Filled.ArrowDropDown,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text = stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-            )
+                    },
+                )
+            }
+            // Prism 顶栏由消息区覆盖层绘制，这里不再占布局高度。
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            // 消息区占用剩余高度；输入区是 Column 最后一个固定子项，始终在底栏上方。
-            Box(
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxSize()
+                    .then(if (isPrism) Modifier.hazeSource(pickerHazeState) else Modifier),
             ) {
-                when {
-                    state.isLoadingHistory -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                // 消息区占用剩余高度；输入区是 Column 最后一个固定子项，始终在底栏上方。
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(if (isPrism) Modifier.hazeSource(topBarHazeState) else Modifier),
+                    ) {
+                        when {
+                            state.isLoadingHistory -> {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.align(Alignment.Center),
+                                    color = if (isPrism) {
+                                        PrismTheme.colors.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                )
+                            }
+
+                            state.messages.isEmpty() -> {
+                                if (isPrism) {
+                                    PrismEmptyState(
+                                        icon = Icons.Filled.AutoAwesome,
+                                        title = stringResource(R.string.chat_empty_message),
+                                        modifier = Modifier.align(Alignment.Center),
+                                    )
+                                } else {
+                                    EmptyState(modifier = Modifier.align(Alignment.Center))
+                                }
+                            }
+
+                            else -> {
+                                MessageList(
+                                    messages = state.messages,
+                                    isPrism = isPrism,
+                                    topPadding = if (isPrism) {
+                                        64.dp + topBarTopInset
+                                    } else {
+                                        12.dp
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        }
                     }
 
-                    state.messages.isEmpty() -> {
-                        EmptyState(modifier = Modifier.align(Alignment.Center))
-                    }
-
-                    else -> {
-                        MessageList(
-                            messages = state.messages,
-                            modifier = Modifier.fillMaxSize(),
+                    if (isPrism) {
+                        PrismChatTopBar(
+                            modelLabel = modelLabel,
+                            onOpenPicker = { showModelPicker = true },
+                            quality = glassQuality,
+                            hazeState = topBarHazeState,
+                            modifier = Modifier.align(Alignment.TopCenter),
                         )
                     }
                 }
+
+                if (isPrism) {
+                    PrismChatInputBar(
+                        inputText = state.inputText,
+                        isGenerating = state.isGenerating,
+                        isLoadingHistory = state.isLoadingHistory,
+                        onInputChange = onInputChange,
+                        onSend = { onSend(state.inputText) },
+                        onStop = onStop,
+                        // IME insets 仅在此处消费一次，与 Material 分支保持同一约束。
+                        modifier = Modifier.imePadding(),
+                    )
+                } else {
+                    ChatInputBar(
+                        inputText = state.inputText,
+                        isGenerating = state.isGenerating,
+                        isLoadingHistory = state.isLoadingHistory,
+                        onInputChange = onInputChange,
+                        onSend = { onSend(state.inputText) },
+                        onStop = onStop,
+                        modifier = Modifier.imePadding(),
+                    )
+                }
             }
 
-            ChatInputBar(
-                inputText = state.inputText,
-                isGenerating = state.isGenerating,
-                isLoadingHistory = state.isLoadingHistory,
-                onInputChange = onInputChange,
-                onSend = { onSend(state.inputText) },
-                onStop = onStop,
-                modifier = Modifier.imePadding(),
-            )
+            if (isPrism && showModelPicker) {
+                PrismPickerOverlay(
+                    providers = state.providers,
+                    activeProviderId = state.activeProviderId,
+                    activeModel = state.activeModel,
+                    quality = glassQuality,
+                    hazeState = pickerHazeState,
+                    onSelect = { providerId, model ->
+                        onModelSelected(providerId, model)
+                        showModelPicker = false
+                    },
+                    onGoSettings = {
+                        showModelPicker = false
+                        onOpenSettings()
+                    },
+                    onDismiss = { showModelPicker = false },
+                )
+            }
         }
     }
 
-    if (showModelPicker) {
+    if (!isPrism && showModelPicker) {
         ModalBottomSheet(
             onDismissRequest = { showModelPicker = false },
             sheetState = sheetState,
@@ -211,6 +324,7 @@ fun ChatScreen(
                 providers = state.providers,
                 activeProviderId = state.activeProviderId,
                 activeModel = state.activeModel,
+                isPrism = false,
                 onSelect = { providerId, model ->
                     onModelSelected(providerId, model)
                     scope.launch {
@@ -223,6 +337,65 @@ fun ChatScreen(
                     onOpenSettings()
                 },
             )
+        }
+    }
+}
+
+/** Prism 模型选择：同窗口玻璃面板，可采样对话页内容；点击遮罩/返回关闭。 */
+@Composable
+private fun PrismPickerOverlay(
+    providers: List<ProviderModels>,
+    activeProviderId: UUID?,
+    activeModel: String?,
+    quality: GlassQuality,
+    hazeState: HazeState,
+    onSelect: (UUID, String) -> Unit,
+    onGoSettings: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    BackHandler(onBack = onDismiss)
+    val colors = PrismTheme.colors
+    val scrimInteraction = remember { MutableInteractionSource() }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.32f))
+                .clickable(
+                    interactionSource = scrimInteraction,
+                    indication = null,
+                    onClick = onDismiss,
+                ),
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.72f)
+                .prismGlassSurface(
+                    quality = quality,
+                    hazeState = hazeState,
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                ),
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .size(width = 40.dp, height = 4.dp)
+                        .background(colors.outlineVariant, PrismTheme.shapes.pill),
+                )
+                ModelPickerSheet(
+                    providers = providers,
+                    activeProviderId = activeProviderId,
+                    activeModel = activeModel,
+                    isPrism = true,
+                    onSelect = onSelect,
+                    onGoSettings = onGoSettings,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 }
@@ -252,6 +425,8 @@ private fun EmptyState(modifier: Modifier = Modifier) {
 @Composable
 private fun MessageList(
     messages: List<UiMessage>,
+    isPrism: Boolean,
+    topPadding: Dp,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -266,7 +441,12 @@ private fun MessageList(
         state = listState,
         modifier = modifier,
         reverseLayout = true,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = topPadding,
+            bottom = 12.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // reverseLayout 下索引 0 是最新消息；key 用原始索引，追加消息时已有 key 不变。
@@ -274,7 +454,12 @@ private fun MessageList(
             count = messages.size,
             key = { listIndex -> messages.lastIndex - listIndex },
         ) { listIndex ->
-            MessageBubble(message = messages[messages.lastIndex - listIndex])
+            val message = messages[messages.lastIndex - listIndex]
+            if (isPrism) {
+                PrismChatBubble(message = message)
+            } else {
+                MessageBubble(message = message)
+            }
         }
     }
 }
@@ -395,11 +580,27 @@ private fun ModelPickerSheet(
     providers: List<ProviderModels>,
     activeProviderId: UUID?,
     activeModel: String?,
+    isPrism: Boolean,
     onSelect: (UUID, String) -> Unit,
     onGoSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val hasModels = providers.any { it.models.isNotEmpty() }
+    val titleColor = if (isPrism) {
+        PrismTheme.colors.onSurface
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val primaryColor = if (isPrism) {
+        PrismTheme.colors.primary
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val mutedColor = if (isPrism) {
+        PrismTheme.colors.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
     Column(
         modifier = modifier
@@ -410,10 +611,11 @@ private fun ModelPickerSheet(
         Text(
             text = stringResource(R.string.chat_model_picker_title),
             style = MaterialTheme.typography.titleMedium,
+            color = titleColor,
             modifier = Modifier.padding(vertical = 12.dp),
         )
         if (!hasModels) {
-            EmptyModelPicker(onGoSettings = onGoSettings)
+            EmptyModelPicker(isPrism = isPrism, onGoSettings = onGoSettings)
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
@@ -424,7 +626,7 @@ private fun ModelPickerSheet(
                         Text(
                             text = provider.name,
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = primaryColor,
                             modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
                         )
                     }
@@ -433,7 +635,7 @@ private fun ModelPickerSheet(
                             Text(
                                 text = stringResource(R.string.chat_model_picker_no_models),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = mutedColor,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             )
                         }
@@ -445,6 +647,7 @@ private fun ModelPickerSheet(
                             ModelRow(
                                 model = model,
                                 selected = provider.id == activeProviderId && model == activeModel,
+                                isPrism = isPrism,
                                 onClick = { onSelect(provider.id, model) },
                             )
                         }
@@ -457,9 +660,16 @@ private fun ModelPickerSheet(
 
 @Composable
 private fun EmptyModelPicker(
+    isPrism: Boolean,
     onGoSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val mutedColor = if (isPrism) {
+        PrismTheme.colors.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -470,11 +680,19 @@ private fun EmptyModelPicker(
         Text(
             text = stringResource(R.string.chat_model_picker_empty),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = mutedColor,
             textAlign = TextAlign.Center,
         )
-        TextButton(onClick = onGoSettings) {
-            Text(text = stringResource(R.string.chat_model_picker_go_settings))
+        if (isPrism) {
+            PrismButton(
+                text = stringResource(R.string.chat_model_picker_go_settings),
+                onClick = onGoSettings,
+                style = PrismButtonStyle.TONAL,
+            )
+        } else {
+            TextButton(onClick = onGoSettings) {
+                Text(text = stringResource(R.string.chat_model_picker_go_settings))
+            }
         }
     }
 }
@@ -483,9 +701,20 @@ private fun EmptyModelPicker(
 private fun ModelRow(
     model: String,
     selected: Boolean,
+    isPrism: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (isPrism) {
+        PrismModelRow(
+            model = model,
+            selected = selected,
+            onClick = onClick,
+            modifier = modifier,
+        )
+        return
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()

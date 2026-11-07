@@ -1,5 +1,6 @@
 package com.recaitelab.app.ui.history
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +32,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -54,7 +57,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.recaitelab.app.R
+import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.ui.common.message
+import com.recaitelab.app.ui.prism.PrismCard
+import com.recaitelab.app.ui.prism.PrismEmptyState
+import com.recaitelab.app.ui.prism.PrismFab
+import com.recaitelab.app.ui.prism.PrismTheme
+import com.recaitelab.app.ui.prism.PrismTopBar
+import com.recaitelab.app.ui.theme.LocalAppDesignSystem
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -114,19 +124,37 @@ fun HistoryScreen(
         }
     }
 
+    val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = if (isPrism) {
+            PrismTheme.colors.background
+        } else {
+            MaterialTheme.colorScheme.background
+        },
         topBar = {
-            TopAppBar(
-                title = { Text(text = stringResource(R.string.tab_history)) },
-            )
+            if (isPrism) {
+                PrismTopBar(title = stringResource(R.string.tab_history))
+            } else {
+                TopAppBar(
+                    title = { Text(text = stringResource(R.string.tab_history)) },
+                )
+            }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNewConversation) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
+            if (isPrism) {
+                PrismFab(
+                    onClick = onNewConversation,
                     contentDescription = stringResource(R.string.history_new_conversation),
                 )
+            } else {
+                FloatingActionButton(onClick = onNewConversation) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.history_new_conversation),
+                    )
+                }
             }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -138,16 +166,27 @@ fun HistoryScreen(
         ) {
             when {
                 state.isLoading -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = if (isPrism) {
+                            PrismTheme.colors.primary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
                 }
 
                 state.conversations.isEmpty() -> {
-                    EmptyHistoryState(modifier = Modifier.align(Alignment.Center))
+                    EmptyHistoryState(
+                        isPrism = isPrism,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
                 }
 
                 else -> {
                     HistoryList(
                         conversations = state.conversations,
+                        isPrism = isPrism,
                         onOpenConversation = onOpenConversation,
                         onOrganizeConversation = onOrganizeConversation,
                         onRequestDelete = onRequestDelete,
@@ -184,6 +223,7 @@ fun HistoryScreen(
 @Composable
 private fun HistoryList(
     conversations: List<HistoryConversationUiModel>,
+    isPrism: Boolean,
     onOpenConversation: (Long) -> Unit,
     onOrganizeConversation: (HistoryConversationUiModel) -> Unit,
     onRequestDelete: (HistoryConversationUiModel) -> Unit,
@@ -192,25 +232,38 @@ private fun HistoryList(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         // 给 FAB 留出滚动空间，避免最后一条被遮挡。
-        contentPadding = PaddingValues(bottom = 88.dp),
+        contentPadding = if (isPrism) {
+            PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp)
+        } else {
+            PaddingValues(bottom = 88.dp)
+        },
+        verticalArrangement = if (isPrism) {
+            Arrangement.spacedBy(8.dp)
+        } else {
+            Arrangement.Top
+        },
     ) {
         items(items = conversations, key = { it.id }) { conversation ->
-            HistoryRow(
+            HistoryItem(
                 conversation = conversation,
+                isPrism = isPrism,
                 onOpen = { onOpenConversation(conversation.id) },
                 onOrganize = { onOrganizeConversation(conversation) },
                 onDelete = { onRequestDelete(conversation) },
                 onRename = { onStartRename(conversation) },
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            if (!isPrism) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
         }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HistoryRow(
+private fun HistoryItem(
     conversation: HistoryConversationUiModel,
+    isPrism: Boolean,
     onOpen: () -> Unit,
     onOrganize: () -> Unit,
     onDelete: () -> Unit,
@@ -218,77 +271,194 @@ private fun HistoryRow(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = onOpen,
-                onLongClick = onDelete,
-            )
-            .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = conversation.title,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = formatUpdatedAt(conversation.updatedAt),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    if (isPrism) {
+        PrismCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onOpen,
+            onLongClick = onDelete,
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                HistoryItemContent(
+                    conversation = conversation,
+                    isPrism = true,
+                    menuExpanded = menuExpanded,
+                    onMenuExpandedChange = { menuExpanded = it },
+                    onOrganize = onOrganize,
+                    onRename = onRename,
+                    onDelete = onDelete,
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = conversation.preview.ifBlank {
-                    stringResource(R.string.history_no_message)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = onOpen,
+                    onLongClick = onDelete,
+                )
+                .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HistoryItemContent(
+                conversation = conversation,
+                isPrism = false,
+                menuExpanded = menuExpanded,
+                onMenuExpandedChange = { menuExpanded = it },
+                onOrganize = onOrganize,
+                onRename = onRename,
+                onDelete = onDelete,
             )
         }
+    }
+}
 
-        Box {
-            IconButton(onClick = { menuExpanded = true }) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = stringResource(R.string.history_more),
-                )
-            }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text(text = stringResource(R.string.knowledge_organize)) },
-                    onClick = {
-                        menuExpanded = false
-                        onOrganize()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(text = stringResource(R.string.history_rename)) },
-                    onClick = {
-                        menuExpanded = false
-                        onRename()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(text = stringResource(R.string.history_delete)) },
-                    onClick = {
-                        menuExpanded = false
-                        onDelete()
-                    },
-                )
-            }
+@Composable
+private fun RowScope.HistoryItemContent(
+    conversation: HistoryConversationUiModel,
+    isPrism: Boolean,
+    menuExpanded: Boolean,
+    onMenuExpandedChange: (Boolean) -> Unit,
+    onOrganize: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val titleColor = if (isPrism) {
+        PrismTheme.colors.onSurface
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val mutedColor = if (isPrism) {
+        PrismTheme.colors.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Column(modifier = Modifier.weight(1f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = conversation.title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+                color = titleColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = formatUpdatedAt(conversation.updatedAt),
+                style = MaterialTheme.typography.labelSmall,
+                color = mutedColor,
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = conversation.preview.ifBlank {
+                stringResource(R.string.history_no_message)
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = mutedColor,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+
+    Box {
+        IconButton(onClick = { onMenuExpandedChange(true) }) {
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = stringResource(R.string.history_more),
+                tint = mutedColor,
+            )
+        }
+        HistoryMenu(
+            expanded = menuExpanded,
+            isPrism = isPrism,
+            onDismiss = { onMenuExpandedChange(false) },
+            onOrganize = onOrganize,
+            onRename = onRename,
+            onDelete = onDelete,
+        )
+    }
+}
+
+@Composable
+private fun HistoryMenu(
+    expanded: Boolean,
+    isPrism: Boolean,
+    onDismiss: () -> Unit,
+    onOrganize: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    if (isPrism) {
+        val colors = PrismTheme.colors
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismiss,
+            shape = PrismTheme.shapes.medium,
+            containerColor = colors.surfaceHigh,
+            tonalElevation = 0.dp,
+            border = BorderStroke(1.dp, colors.outlineVariant),
+        ) {
+            val itemColors = MenuDefaults.itemColors(
+                textColor = colors.onSurface,
+                leadingIconColor = colors.onSurfaceVariant,
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.knowledge_organize)) },
+                onClick = {
+                    onDismiss()
+                    onOrganize()
+                },
+                colors = itemColors,
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.history_rename)) },
+                onClick = {
+                    onDismiss()
+                    onRename()
+                },
+                colors = itemColors,
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.history_delete)) },
+                onClick = {
+                    onDismiss()
+                    onDelete()
+                },
+                colors = itemColors,
+            )
+        }
+    } else {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismiss,
+        ) {
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.knowledge_organize)) },
+                onClick = {
+                    onDismiss()
+                    onOrganize()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.history_rename)) },
+                onClick = {
+                    onDismiss()
+                    onRename()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.history_delete)) },
+                onClick = {
+                    onDismiss()
+                    onDelete()
+                },
+            )
         }
     }
 }
@@ -319,7 +489,21 @@ private fun OrganizingDialog() {
 }
 
 @Composable
-private fun EmptyHistoryState(modifier: Modifier = Modifier) {    Column(
+private fun EmptyHistoryState(
+    isPrism: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (isPrism) {
+        PrismEmptyState(
+            icon = Icons.Filled.History,
+            title = stringResource(R.string.history_empty_title),
+            hint = stringResource(R.string.history_empty_hint),
+            modifier = modifier,
+        )
+        return
+    }
+
+    Column(
         modifier = modifier.padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),

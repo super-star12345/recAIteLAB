@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -36,8 +37,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.recaitelab.app.R
+import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.KnowledgeEntry
 import com.recaitelab.app.ui.common.MarkdownText
+import com.recaitelab.app.ui.prism.PrismButton
+import com.recaitelab.app.ui.prism.PrismButtonStyle
+import com.recaitelab.app.ui.prism.PrismEmptyState
+import com.recaitelab.app.ui.prism.PrismIconButton
+import com.recaitelab.app.ui.prism.PrismTag
+import com.recaitelab.app.ui.prism.PrismTheme
+import com.recaitelab.app.ui.prism.PrismTopBar
+import com.recaitelab.app.ui.theme.LocalAppDesignSystem
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -54,20 +64,41 @@ fun KnowledgeDetailScreen(
     onOpenSourceConversation: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = if (isPrism) {
+            PrismTheme.colors.background
+        } else {
+            MaterialTheme.colorScheme.background
+        },
         topBar = {
-            TopAppBar(
-                title = { Text(text = stringResource(R.string.knowledge_detail_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            if (isPrism) {
+                PrismTopBar(
+                    title = stringResource(R.string.knowledge_detail_title),
+                    navigationIcon = {
+                        PrismIconButton(
+                            icon = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.knowledge_detail_back),
+                            onClick = onBack,
+                            tint = PrismTheme.colors.onBackground,
                         )
-                    }
-                },
-            )
+                    },
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(text = stringResource(R.string.knowledge_detail_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.knowledge_detail_back),
+                            )
+                        }
+                    },
+                )
+            }
         },
     ) { innerPadding ->
         when {
@@ -78,13 +109,20 @@ fun KnowledgeDetailScreen(
                         .padding(innerPadding),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(
+                        color = if (isPrism) {
+                            PrismTheme.colors.primary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
                 }
             }
 
             state.entry != null -> {
                 KnowledgeDetailContent(
                     entry = state.entry,
+                    isPrism = isPrism,
                     onOpenSourceConversation = onOpenSourceConversation,
                     modifier = Modifier
                         .fillMaxSize()
@@ -93,25 +131,33 @@ fun KnowledgeDetailScreen(
             }
 
             else -> {
+                val message = stringResource(
+                    if (state.isNotFound) {
+                        R.string.knowledge_detail_missing
+                    } else {
+                        R.string.knowledge_detail_load_error
+                    },
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = stringResource(
-                            if (state.isNotFound) {
-                                R.string.knowledge_detail_missing
-                            } else {
-                                R.string.knowledge_detail_load_error
-                            },
-                        ),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 32.dp),
-                    )
+                    if (isPrism) {
+                        PrismEmptyState(
+                            icon = Icons.Filled.AutoStories,
+                            title = message,
+                        )
+                    } else {
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 32.dp),
+                        )
+                    }
                 }
             }
         }
@@ -122,9 +168,26 @@ fun KnowledgeDetailScreen(
 @Composable
 private fun KnowledgeDetailContent(
     entry: KnowledgeEntry,
+    isPrism: Boolean,
     onOpenSourceConversation: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val titleColor = if (isPrism) {
+        PrismTheme.colors.onSurface
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val mutedColor = if (isPrism) {
+        PrismTheme.colors.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val dividerColor = if (isPrism) {
+        PrismTheme.colors.outlineVariant
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
+    }
+
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -134,7 +197,7 @@ private fun KnowledgeDetailContent(
         Text(
             text = entry.title,
             style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = titleColor,
         )
 
         if (entry.tags.isNotEmpty()) {
@@ -142,7 +205,13 @@ private fun KnowledgeDetailContent(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                entry.tags.forEach { tag -> DetailTagChip(text = tag) }
+                entry.tags.forEach { tag ->
+                    if (isPrism) {
+                        PrismTag(text = tag)
+                    } else {
+                        DetailTagChip(text = tag)
+                    }
+                }
             }
         }
 
@@ -153,7 +222,7 @@ private fun KnowledgeDetailContent(
                     formatDateTime(entry.updatedAt),
                 ),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = mutedColor,
             )
             Text(
                 text = stringResource(
@@ -162,12 +231,13 @@ private fun KnowledgeDetailContent(
                         ?: stringResource(R.string.knowledge_detail_model_unknown),
                 ),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = mutedColor,
             )
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(color = dividerColor)
 
+        // 知识详情始终沿用文章阅读样式（MarkdownText 默认 ARTICLE），不使用对话页的紧凑标题。
         MarkdownText(
             markdown = entry.content,
             modifier = Modifier.fillMaxWidth(),
@@ -175,17 +245,27 @@ private fun KnowledgeDetailContent(
 
         entry.sourceConversationId?.let { conversationId ->
             Spacer(modifier = Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = { onOpenSourceConversation(conversationId) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Chat,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+            if (isPrism) {
+                PrismButton(
+                    text = stringResource(R.string.knowledge_detail_source),
+                    onClick = { onOpenSourceConversation(conversationId) },
+                    modifier = Modifier.fillMaxWidth(),
+                    style = PrismButtonStyle.TONAL,
+                    leadingIcon = Icons.AutoMirrored.Filled.Chat,
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.knowledge_detail_source))
+            } else {
+                OutlinedButton(
+                    onClick = { onOpenSourceConversation(conversationId) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.knowledge_detail_source))
+                }
             }
         }
     }
