@@ -18,7 +18,7 @@
 | 工作树 | 未提交：4 项基线问题修复（`Theme.kt` / `Color.kt` / `MarkdownPreview.kt` / `HistoryViewModel.kt` / `KnowledgeScreen.kt` / 新单测）、`HANDOFF.md`、`docs/`；`local.properties` / `keystore.properties` / `*.jks` / `build/` 被忽略 |
 | 编译 / 测试 | `.\gradlew.bat assembleDebug` 通过；`testDebugUnitTest` **58/58** 通过（8 个测试类） |
 | 真机 | 已连接：V2463A / Android 17（SDK 37）/ 1440×3168 / density 640；已装修复版 debug `4.5.1 / 451`（2026-11-07 21:01，数据保留） |
-| 基线截图 | **10 张已完成** → `docs/baseline/screenshots/`（5 页 × 浅/深） |
+| 基线截图 | **10 张已完成**，已按修复后界面重拍（完整 1440×3168）→ `docs/baseline/screenshots/` |
 | 下一阶段 | Prism Glass **T1：双主题架构 + 静态预览** |
 
 **推送状态**：本地 `main` 领先 `origin/main` **1 个提交**（`f8d96e0` 对话页 Markdown 标题紧凑化，T0 前置小修）。
@@ -354,7 +354,7 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 - 未提交：4 项基线问题修复 + `HANDOFF.md` + `docs/`，等待用户验收后提交：
   - 修改：`ui/theme/Theme.kt`、`ui/theme/Color.kt`、`ui/history/HistoryViewModel.kt`、`ui/knowledge/KnowledgeScreen.kt`
   - 新增：`ui/common/MarkdownPreview.kt`、`app/src/test/.../MarkdownPreviewTest.kt`
-  - 文档：`docs/prism-theme-baseline.md`、`docs/baseline/screenshots/`（10 张 PNG，修复前旧图，待重拍）
+  - 文档：`docs/prism-theme-baseline.md`、`docs/baseline/screenshots/`（10 张 PNG，已重拍为修复后状态）
 - 忽略：`local.properties`、`keystore.properties`、`*.jks` / `*.keystore`、`build/`、`.gradle/`、`*.apk`、`.idea/`、`.kotlin/`。
 - 提交前扫描源码无 `sk-*` 明文；**不得提交** `local.properties`、debug APK、签名材料。
 - 网络恢复后：`git push origin main`；如需先备份分支：`git push -u origin feature/prism-glass`。
@@ -375,7 +375,7 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 - release 签名与 R8 配置；58 个 JVM 单测；
 - **T0 基线问题修复（2026-11-07）**：系统栏图标明暗跟随主题、补全 `surfaceContainer*` 色板、
   历史预览剥离 Markdown（新增 `MarkdownPreview` + 单测）、知识库 tags 换行；已装真机并由用户人工验证通过，
-  基线截图待按修复后界面重拍。
+  基线截图已按修复后界面重拍。
 - **Prism T0**：`feature/prism-glass` 分支、基线 commit、构建/测试记录、`docs/prism-theme-baseline.md`、
   `docs/baseline/screenshots/` 10 张真机基线截图；真机已装 4.5.1/451。
 
