@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +38,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.recaitelab.app.di.AppContainer
+import com.recaitelab.app.domain.model.AppearanceMode
 import com.recaitelab.app.ui.chat.ChatScreen
 import com.recaitelab.app.ui.chat.ChatViewModel
 import com.recaitelab.app.ui.history.HistoryScreen
@@ -51,7 +53,9 @@ import com.recaitelab.app.ui.navigation.KnowledgeDetailRoute
 import com.recaitelab.app.ui.navigation.KnowledgeRoute
 import com.recaitelab.app.ui.navigation.SettingsAppearanceRoute
 import com.recaitelab.app.ui.navigation.SettingsModelsRoute
+import com.recaitelab.app.ui.navigation.SettingsPrismRoute
 import com.recaitelab.app.ui.navigation.SettingsRoute
+import com.recaitelab.app.ui.prism.PrismPreviewScreen
 import com.recaitelab.app.ui.settings.AppearanceSettingsScreen
 import com.recaitelab.app.ui.settings.ModelSettingsScreen
 import com.recaitelab.app.ui.settings.SettingsEvent
@@ -69,6 +73,9 @@ class MainActivity : ComponentActivity() {
                 appearanceMode = settingsState.appearanceMode,
                 colorTheme = settingsState.colorTheme,
                 dynamicColorEnabled = settingsState.dynamicColorEnabled,
+                designSystem = settingsState.designSystem,
+                prismColorStyle = settingsState.prismColorStyle,
+                prismSeedColor = settingsState.prismSeedColor,
             ) {
                 AppRoot(settingsViewModel = settingsViewModel)
             }
@@ -181,6 +188,7 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
                     viewModel = settingsViewModel,
                     onOpenAppearance = { navController.navigate(SettingsAppearanceRoute) },
                     onOpenModels = { navController.navigate(SettingsModelsRoute) },
+                    onOpenPrismPreview = { navController.navigate(SettingsPrismRoute) },
                 )
             }
             composable<SettingsAppearanceRoute> {
@@ -192,6 +200,20 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
             composable<SettingsModelsRoute> {
                 ModelSettingsDestination(
                     viewModel = settingsViewModel,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable<SettingsPrismRoute> {
+                val state by settingsViewModel.uiState.collectAsState()
+                val isDark = when (state.appearanceMode) {
+                    AppearanceMode.SYSTEM -> isSystemInDarkTheme()
+                    AppearanceMode.LIGHT -> false
+                    AppearanceMode.DARK -> true
+                }
+                PrismPreviewScreen(
+                    initialStyle = state.prismColorStyle,
+                    seedColorArgb = state.prismSeedColor,
+                    initialDark = isDark,
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -303,12 +325,15 @@ private fun SettingsDestination(
     viewModel: SettingsViewModel,
     onOpenAppearance: () -> Unit,
     onOpenModels: () -> Unit,
+    onOpenPrismPreview: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsState()
     SettingsScreen(
         state = state,
         onOpenAppearance = onOpenAppearance,
         onOpenModels = onOpenModels,
+        onEvent = viewModel::onEvent,
+        onOpenPrismPreview = onOpenPrismPreview,
     )
 }
 

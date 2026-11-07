@@ -28,6 +28,10 @@ data object SettingsAppearanceRoute
 @Serializable
 data object SettingsModelsRoute
 
+/** 设置二级页：Prism 主题静态预览（T1，不接业务数据）。 */
+@Serializable
+data object SettingsPrismRoute
+
 /** 知识详情二级页；[entryId] 为知识条目主键。 */
 @Serializable
 data class KnowledgeDetailRoute(val entryId: Long)

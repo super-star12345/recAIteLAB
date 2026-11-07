@@ -9,7 +9,10 @@ import com.recaitelab.app.data.remote.ChatProvider
 import com.recaitelab.app.data.remote.createChatProvider
 import com.recaitelab.app.data.repository.ProviderRepository
 import com.recaitelab.app.domain.model.AppColorTheme
+import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.AppearanceMode
+import com.recaitelab.app.domain.model.GlassQuality
+import com.recaitelab.app.domain.model.PrismColorStyle
 import com.recaitelab.app.domain.model.ProviderConfig
 import com.recaitelab.app.domain.model.ProviderType
 import java.io.IOException
@@ -82,6 +85,26 @@ class SettingsViewModel(
                 }
             }
         }
+
+        viewModelScope.launch {
+            combine(
+                preferences.designSystem,
+                preferences.prismColorStyle,
+                preferences.prismSeedColor,
+                preferences.glassQuality,
+            ) { system, style, seed, quality ->
+                PrismPreferences(system, style, seed, quality)
+            }.collect { prism ->
+                _uiState.update {
+                    it.copy(
+                        designSystem = prism.designSystem,
+                        prismColorStyle = prism.colorStyle,
+                        prismSeedColor = prism.seedColor,
+                        glassQuality = prism.glassQuality,
+                    )
+                }
+            }
+        }
     }
 
     fun onEvent(event: SettingsEvent) {
@@ -115,6 +138,10 @@ class SettingsViewModel(
             is SettingsEvent.AppearanceModeChange -> setAppearanceMode(event.mode)
             is SettingsEvent.ColorThemeChange -> setColorTheme(event.theme)
             is SettingsEvent.DynamicColorChange -> setDynamicColorEnabled(event.enabled)
+            is SettingsEvent.DesignSystemChange -> setDesignSystem(event.system)
+            is SettingsEvent.PrismStyleChange -> setPrismColorStyle(event.style)
+            is SettingsEvent.PrismSeedChange -> setPrismSeedColor(event.argb)
+            is SettingsEvent.GlassQualityChange -> setGlassQuality(event.quality)
             SettingsEvent.ErrorShown -> _uiState.update { it.copy(errorMessage = null) }
         }
     }
@@ -409,6 +436,26 @@ class SettingsViewModel(
         persistTheme { preferences.setDynamicColorEnabled(enabled) }
     }
 
+    private fun setDesignSystem(system: AppDesignSystem) {
+        if (_uiState.value.designSystem == system) return
+        persistTheme { preferences.setDesignSystem(system) }
+    }
+
+    private fun setPrismColorStyle(style: PrismColorStyle) {
+        if (_uiState.value.prismColorStyle == style) return
+        persistTheme { preferences.setPrismColorStyle(style) }
+    }
+
+    private fun setPrismSeedColor(argb: Long) {
+        if (_uiState.value.prismSeedColor == argb) return
+        persistTheme { preferences.setPrismSeedColor(argb) }
+    }
+
+    private fun setGlassQuality(quality: GlassQuality) {
+        if (_uiState.value.glassQuality == quality) return
+        persistTheme { preferences.setGlassQuality(quality) }
+    }
+
     /**
      * 主题偏好以 DataStore 为唯一数据源：写入成功后 Flow 回流更新 UiState，
      * MainActivity 收集到变化后立即重组 RecAIteLABTheme。
@@ -454,3 +501,11 @@ class SettingsViewModel(
         selectedModel = selectedModel,
     )
 }
+
+/** Prism 偏好合并结果的中间载体，避免 UiState 更新时拆成多次 copy。 */
+private data class PrismPreferences(
+    val designSystem: AppDesignSystem,
+    val colorStyle: PrismColorStyle,
+    val seedColor: Long,
+    val glassQuality: GlassQuality,
+)

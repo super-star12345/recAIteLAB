@@ -14,10 +14,15 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import com.recaitelab.app.domain.model.AppColorTheme
+import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.AppearanceMode
+import com.recaitelab.app.domain.model.DEFAULT_PRISM_SEED_ARGB
+import com.recaitelab.app.domain.model.PrismColorStyle
+import com.recaitelab.app.ui.prism.PrismTheme
 
 /**
  * 应用主题：外观模式（跟随系统 / 浅色 / 深色）+ 配色方案（默认 / 护眼绿 / 商务蓝）。
@@ -30,6 +35,9 @@ fun RecAIteLABTheme(
     appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
     colorTheme: AppColorTheme = AppColorTheme.DEFAULT,
     dynamicColorEnabled: Boolean = false,
+    designSystem: AppDesignSystem = AppDesignSystem.MATERIAL_3,
+    prismColorStyle: PrismColorStyle = PrismColorStyle.SOFT,
+    prismSeedColor: Long = DEFAULT_PRISM_SEED_ARGB,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = when (appearanceMode) {
@@ -54,8 +62,19 @@ fun RecAIteLABTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
-        content = content,
-    )
+    ) {
+        if (designSystem == AppDesignSystem.PRISM_GLASS) {
+            // 只注入 Prism token，不替换 MaterialTheme：正式页面在 T1 仍保持 M3 外观。
+            PrismTheme(
+                style = prismColorStyle,
+                seedColor = Color(prismSeedColor.toInt()),
+                darkTheme = darkTheme,
+                content = content,
+            )
+        } else {
+            content()
+        }
+    }
 }
 
 /**

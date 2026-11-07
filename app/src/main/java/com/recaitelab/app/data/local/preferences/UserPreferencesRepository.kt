@@ -10,7 +10,11 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.recaitelab.app.domain.model.AppColorTheme
+import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.AppearanceMode
+import com.recaitelab.app.domain.model.DEFAULT_PRISM_SEED_ARGB
+import com.recaitelab.app.domain.model.GlassQuality
+import com.recaitelab.app.domain.model.PrismColorStyle
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -60,6 +64,31 @@ class UserPreferencesRepository internal constructor(
 
     val dynamicColorEnabled: Flow<Boolean> = dataStore.safeData()
         .map { preferences -> preferences[KEY_DYNAMIC_COLOR_ENABLED] ?: false }
+
+    /** 设计系统：Material 3（默认）或 Prism Glass。 */
+    val designSystem: Flow<AppDesignSystem> = dataStore.safeData()
+        .map { preferences ->
+            val raw = preferences[KEY_DESIGN_SYSTEM]
+            AppDesignSystem.entries.firstOrNull { it.name == raw } ?: AppDesignSystem.MATERIAL_3
+        }
+
+    /** Prism 配色风格，默认柔和。 */
+    val prismColorStyle: Flow<PrismColorStyle> = dataStore.safeData()
+        .map { preferences ->
+            val raw = preferences[KEY_PRISM_COLOR_STYLE]
+            PrismColorStyle.entries.firstOrNull { it.name == raw } ?: PrismColorStyle.SOFT
+        }
+
+    /** Prism 种子色（ARGB Long），非法值回退品牌青绿。 */
+    val prismSeedColor: Flow<Long> = dataStore.safeData()
+        .map { preferences -> preferences[KEY_PRISM_SEED_COLOR] ?: DEFAULT_PRISM_SEED_ARGB }
+
+    /** 玻璃质量档位；T1 只保存，不启用效果。 */
+    val glassQuality: Flow<GlassQuality> = dataStore.safeData()
+        .map { preferences ->
+            val raw = preferences[KEY_GLASS_QUALITY]
+            GlassQuality.entries.firstOrNull { it.name == raw } ?: GlassQuality.STANDARD
+        }
 
     suspend fun setActiveProviderId(providerId: String?) {
         dataStore.edit { preferences ->
@@ -115,6 +144,30 @@ class UserPreferencesRepository internal constructor(
         }
     }
 
+    suspend fun setDesignSystem(designSystem: AppDesignSystem) {
+        dataStore.edit { preferences ->
+            preferences[KEY_DESIGN_SYSTEM] = designSystem.name
+        }
+    }
+
+    suspend fun setPrismColorStyle(style: PrismColorStyle) {
+        dataStore.edit { preferences ->
+            preferences[KEY_PRISM_COLOR_STYLE] = style.name
+        }
+    }
+
+    suspend fun setPrismSeedColor(argb: Long) {
+        dataStore.edit { preferences ->
+            preferences[KEY_PRISM_SEED_COLOR] = argb
+        }
+    }
+
+    suspend fun setGlassQuality(quality: GlassQuality) {
+        dataStore.edit { preferences ->
+            preferences[KEY_GLASS_QUALITY] = quality.name
+        }
+    }
+
     /** 读取失败（例如磁盘 IO）时回退为空偏好，不让 UI 因 DataStore 异常崩溃。 */
     private fun DataStore<Preferences>.safeData(): Flow<Preferences> = data.catch { throwable ->
         if (throwable is IOException) {
@@ -135,6 +188,11 @@ class UserPreferencesRepository internal constructor(
         val KEY_COLOR_THEME: Preferences.Key<String> = stringPreferencesKey("color_theme")
         val KEY_DYNAMIC_COLOR_ENABLED: Preferences.Key<Boolean> =
             booleanPreferencesKey("dynamic_color_enabled")
+        val KEY_DESIGN_SYSTEM: Preferences.Key<String> = stringPreferencesKey("design_system")
+        val KEY_PRISM_COLOR_STYLE: Preferences.Key<String> =
+            stringPreferencesKey("prism_color_style")
+        val KEY_PRISM_SEED_COLOR: Preferences.Key<Long> = longPreferencesKey("prism_seed_color")
+        val KEY_GLASS_QUALITY: Preferences.Key<String> = stringPreferencesKey("glass_quality")
     }
 }
 

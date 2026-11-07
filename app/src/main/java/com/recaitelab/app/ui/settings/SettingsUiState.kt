@@ -1,7 +1,11 @@
 package com.recaitelab.app.ui.settings
 
 import com.recaitelab.app.domain.model.AppColorTheme
+import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.AppearanceMode
+import com.recaitelab.app.domain.model.DEFAULT_PRISM_SEED_ARGB
+import com.recaitelab.app.domain.model.GlassQuality
+import com.recaitelab.app.domain.model.PrismColorStyle
 import java.util.UUID
 
 /**
@@ -15,6 +19,10 @@ import java.util.UUID
  * @property colorTheme 配色方案：默认 / 护眼绿 / 商务蓝
  * @property dynamicColorEnabled 是否启用系统动态取色（仅 Android 12+）
  * @property isDynamicColorSupported 当前系统版本是否支持动态取色
+ * @property designSystem 设计系统：Material 3 / Prism Glass
+ * @property prismColorStyle Prism 配色风格（VIVID / TINTED / SOFT / MONOCHROME）
+ * @property prismSeedColor Prism 种子色（ARGB Long）
+ * @property glassQuality 玻璃质量档位；T1 只保存，不启用效果
  */
 data class SettingsUiState(
     val providers: List<ProviderUiModel> = emptyList(),
@@ -26,6 +34,10 @@ data class SettingsUiState(
     val colorTheme: AppColorTheme = AppColorTheme.DEFAULT,
     val dynamicColorEnabled: Boolean = false,
     val isDynamicColorSupported: Boolean = false,
+    val designSystem: AppDesignSystem = AppDesignSystem.MATERIAL_3,
+    val prismColorStyle: PrismColorStyle = PrismColorStyle.SOFT,
+    val prismSeedColor: Long = DEFAULT_PRISM_SEED_ARGB,
+    val glassQuality: GlassQuality = GlassQuality.STANDARD,
 )
 
 /** Provider 列表项；apiKey 不进入 UI 层。 */
@@ -85,5 +97,9 @@ sealed interface SettingsEvent {
     data class AppearanceModeChange(val mode: AppearanceMode) : SettingsEvent
     data class ColorThemeChange(val theme: AppColorTheme) : SettingsEvent
     data class DynamicColorChange(val enabled: Boolean) : SettingsEvent
+    data class DesignSystemChange(val system: AppDesignSystem) : SettingsEvent
+    data class PrismStyleChange(val style: PrismColorStyle) : SettingsEvent
+    data class PrismSeedChange(val argb: Long) : SettingsEvent
+    data class GlassQualityChange(val quality: GlassQuality) : SettingsEvent
     data object ErrorShown : SettingsEvent
 }
