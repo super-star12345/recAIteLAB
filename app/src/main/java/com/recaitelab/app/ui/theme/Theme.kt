@@ -35,6 +35,9 @@ val LocalAppDesignSystem = staticCompositionLocalOf { AppDesignSystem.MATERIAL_3
 /** Prism 悬浮 Dock 占用的底部空间（含系统导航栏与间距）；Material 模式恒为 0。 */
 val LocalPrismDockSpace = staticCompositionLocalOf { 0.dp }
 
+/** 对话输入区实测高度；ChatScreen 据此给消息列表留底部空间。 */
+val LocalPrismChatInputHeight = staticCompositionLocalOf { 80.dp }
+
 /**
  * 应用主题：外观模式（跟随系统 / 浅色 / 深色）+ 配色方案（默认 / 护眼绿 / 商务蓝）。
  *

@@ -16,13 +16,12 @@ object GlassStyle {
     val BorderWidth = 1.dp
     val ShadowElevation = 8.dp
 
-    /** 玻璃底色（surface）的不透明度，深浅色分别调校。 */
-    const val LightContainerAlpha = 0.25f
-    const val DarkContainerAlpha = 0.32f
-
     /** tint 的不透明度：浅色稍低、深色稍高，保证文字可读。 */
     const val LightTintAlpha = 0.45f
     const val DarkTintAlpha = 0.55f
+
+    /** 仅 Snapshot Sheet 需要的内容承托底色；顶栏/输入区保持透明。 */
+    const val SheetContainerAlpha = 0.55f
 
     /** 不支持模糊/关闭模糊时，Haze fallback scrim 的不透明度。 */
     const val FallbackAlpha = 0.86f

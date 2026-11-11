@@ -219,6 +219,7 @@ fun PrismSnapSheet(
                     hazeState = hazeState,
                     shape = PrismCornerShape(SnapSheetSpec.CornerRadius),
                     shadowElevation = SnapSheetSpec.ShadowElevation,
+                    hazeBackground = colors.surface.copy(alpha = GlassStyle.SheetContainerAlpha),
                 )
                 // 吞掉面板空白处的点击，避免穿透到遮罩直接关闭；拖动仍由头部区域处理。
                 .clickable(

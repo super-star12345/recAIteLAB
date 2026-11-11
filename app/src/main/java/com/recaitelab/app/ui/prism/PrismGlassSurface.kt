@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.DefaultShadowColor
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -35,6 +36,10 @@ fun Modifier.prismGlassSurface(
     hazeState: HazeState,
     shape: Shape,
     shadowElevation: Dp = GlassStyle.ShadowElevation,
+    hazeBackground: Color = Color.Transparent,
+    showBorder: Boolean = true,
+    shadowAmbientColor: Color = DefaultShadowColor,
+    shadowSpotColor: Color = DefaultShadowColor,
 ): Modifier {
     val colors = PrismTheme.colors
     val useGlass = quality == GlassQuality.STANDARD
@@ -42,29 +47,38 @@ fun Modifier.prismGlassSurface(
 
     return if (useGlass) {
         val style = remember(colors) {
-            val containerAlpha = if (colors.isDark) {
-                GlassStyle.DarkContainerAlpha
-            } else {
-                GlassStyle.LightContainerAlpha
-            }
             val tintAlpha = if (colors.isDark) {
                 GlassStyle.DarkTintAlpha
             } else {
                 GlassStyle.LightTintAlpha
             }
             HazeStyle(
-                backgroundColor = colors.surface.copy(alpha = containerAlpha),
-                tints = listOf(HazeTint(colors.surface.copy(alpha = tintAlpha))),
+                // 顶栏/输入区默认不加 surface 白底；Sheet 显式传承托色。
+                backgroundColor = hazeBackground,
+                // tint 跟随页面底色而不是 surface（surface 更白，会在空内容区形成白色底板）。
+                tints = listOf(HazeTint(colors.background.copy(alpha = tintAlpha))),
                 blurRadius = GlassStyle.BlurRadius,
                 noiseFactor = GlassStyle.NoiseFactor,
-                fallbackTint = HazeTint(colors.surface.copy(alpha = GlassStyle.FallbackAlpha)),
+                fallbackTint = HazeTint(colors.background.copy(alpha = GlassStyle.FallbackAlpha)),
             )
         }
         this
-            .shadow(elevation = shadowElevation, shape = shape, clip = false)
+            .shadow(
+                elevation = shadowElevation,
+                shape = shape,
+                clip = false,
+                ambientColor = shadowAmbientColor,
+                spotColor = shadowSpotColor,
+            )
             .clip(shape)
             .hazeEffect(state = hazeState, style = style)
-            .border(GlassStyle.BorderWidth, highlight, shape)
+            .then(
+                if (showBorder) {
+                    Modifier.border(GlassStyle.BorderWidth, highlight, shape)
+                } else {
+                    Modifier
+                },
+            )
     } else {
         this
             .shadow(elevation = 2.dp, shape = shape, clip = false)

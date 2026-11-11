@@ -84,11 +84,10 @@ import com.recaitelab.app.ui.prism.PrismSnapSheet
 import com.recaitelab.app.ui.prism.PrismTheme
 import com.recaitelab.app.ui.prism.prismGlassSurface
 import com.recaitelab.app.ui.theme.LocalAppDesignSystem
+import com.recaitelab.app.ui.theme.LocalPrismChatInputHeight
 import com.recaitelab.app.ui.theme.LocalPrismDockSpace
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -114,7 +113,6 @@ fun ChatScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
-    val glassQuality = LocalGlassQuality.current
     var showModelPicker by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -125,12 +123,8 @@ fun ChatScreen(
         else -> error.message()
     }
 
-    val hazeEnabled = isPrism && glassQuality == GlassQuality.STANDARD
-    val chatHazeState = rememberHazeState(blurEnabled = hazeEnabled)
     val topBarTopInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val dockSpace = LocalPrismDockSpace.current
-    val density = LocalDensity.current
-    var prismInputHeight by remember { mutableStateOf(0.dp) }
 
     LaunchedEffect(error, state.canRetry) {
         errorMessage ?: return@LaunchedEffect
@@ -158,8 +152,9 @@ fun ChatScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        // Prism 的页面底色由根 Box 提供；Scaffold 自身不再铺一层不透明 Surface。
         containerColor = if (isPrism) {
-            PrismTheme.colors.background
+            Color.Transparent
         } else {
             MaterialTheme.colorScheme.background
         },
@@ -211,98 +206,31 @@ fun ChatScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
             ) {
-                // 消息内容铺满整屏并作为 Haze 源；顶栏、输入区、Sheet 都浮在它上面。
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .hazeSource(chatHazeState),
-                ) {
-                    when {
-                        state.isLoadingHistory -> {
-                            CircularProgressIndicator(
-                                modifier = Modifier.align(Alignment.Center),
-                                color = PrismTheme.colors.primary,
-                            )
-                        }
-
-                        state.messages.isEmpty() -> {
-                            PrismEmptyState(
-                                icon = Icons.Filled.AutoAwesome,
-                                title = stringResource(R.string.chat_empty_message),
-                                modifier = Modifier.align(Alignment.Center),
-                            )
-                        }
-
-                        else -> {
-                            MessageList(
-                                messages = state.messages,
-                                isPrism = true,
-                                topPadding = topBarTopInset + 72.dp,
-                                bottomPadding = prismInputHeight + dockSpace + 16.dp,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
+                when {
+                    state.isLoadingHistory -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                            color = PrismTheme.colors.primary,
+                        )
                     }
-                }
 
-                PrismChatTopBar(
-                    modelLabel = modelLabel,
-                    onOpenPicker = { showModelPicker = true },
-                    quality = glassQuality,
-                    hazeState = chatHazeState,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(horizontal = 12.dp)
-                        .padding(top = topBarTopInset + 8.dp),
-                )
+                    state.messages.isEmpty() -> {
+                        PrismEmptyState(
+                            icon = Icons.Filled.AutoAwesome,
+                            title = stringResource(R.string.chat_empty_message),
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+                    }
 
-                PrismChatInputBar(
-                    inputText = state.inputText,
-                    isGenerating = state.isGenerating,
-                    isLoadingHistory = state.isLoadingHistory,
-                    onInputChange = onInputChange,
-                    onSend = { onSend(state.inputText) },
-                    onStop = onStop,
-                    quality = glassQuality,
-                    hazeState = chatHazeState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(horizontal = 20.dp)
-                        .padding(bottom = dockSpace)
-                        // IME insets 仅在此处消费一次，与 Material 分支保持同一约束。
-                        .imePadding()
-                        .onSizeChanged { size ->
-                            prismInputHeight = with(density) { size.height.toDp() }
-                        },
-                )
-
-                PrismSnapSheet(
-                    visible = showModelPicker,
-                    onDismiss = { showModelPicker = false },
-                    title = stringResource(R.string.chat_model_picker_title),
-                    quality = glassQuality,
-                    hazeState = chatHazeState,
-                    contentHeightHint = modelPickerHeightHint(state.providers),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = dockSpace + 8.dp),
-                ) {
-                    ModelPickerSheet(
-                        providers = state.providers,
-                        activeProviderId = state.activeProviderId,
-                        activeModel = state.activeModel,
-                        isPrism = true,
-                        showTitle = false,
-                        onSelect = { providerId, model ->
-                            onModelSelected(providerId, model)
-                            showModelPicker = false
-                        },
-                        onGoSettings = {
-                            showModelPicker = false
-                            onOpenSettings()
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    else -> {
+                        MessageList(
+                            messages = state.messages,
+                            isPrism = true,
+                            topPadding = topBarTopInset + 72.dp,
+                            bottomPadding = LocalPrismChatInputHeight.current + dockSpace + 16.dp,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 }
             }
         } else {
@@ -779,5 +707,99 @@ private fun ChatScreenPreview() {
             onOpenSettings = {},
             onModelSelected = { _, _ -> },
         )
+    }
+}
+
+/**
+ * Prism 对话页的顶栏 / 输入区 / 模型 Sheet。
+ *
+ * 放在 NavHost 外层（MainActivity 的 Prism 根 Box）绘制，才能让 Haze 采样整页内容，
+ * 而不是只采样消息列表；ChatScreen 本体只负责消息列表与底部留白。
+ */
+@Composable
+fun PrismChatOverlay(
+    state: ChatUiState,
+    quality: GlassQuality,
+    hazeState: HazeState,
+    dockSpace: Dp,
+    onInputChange: (String) -> Unit,
+    onSend: (String) -> Unit,
+    onStop: () -> Unit,
+    onModelSelected: (UUID, String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onInputHeightChanged: (Dp) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showModelPicker by rememberSaveable { mutableStateOf(false) }
+    val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val density = LocalDensity.current
+
+    val providerName = state.activeProviderName
+    val modelName = state.activeModel
+    val modelLabel = when {
+        providerName == null -> stringResource(R.string.chat_no_provider)
+        modelName == null -> "$providerName / ${stringResource(R.string.chat_no_model)}"
+        else -> "$providerName / $modelName"
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        PrismChatTopBar(
+            modelLabel = modelLabel,
+            onOpenPicker = { showModelPicker = true },
+            quality = quality,
+            hazeState = hazeState,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 12.dp)
+                .padding(top = topInset + 8.dp),
+        )
+
+        PrismChatInputBar(
+            inputText = state.inputText,
+            isGenerating = state.isGenerating,
+            isLoadingHistory = state.isLoadingHistory,
+            onInputChange = onInputChange,
+            onSend = { onSend(state.inputText) },
+            onStop = onStop,
+            quality = quality,
+            hazeState = hazeState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 20.dp)
+                .padding(bottom = dockSpace)
+                .imePadding()
+                .onSizeChanged { size ->
+                    onInputHeightChanged(with(density) { size.height.toDp() })
+                },
+        )
+
+        PrismSnapSheet(
+            visible = showModelPicker,
+            onDismiss = { showModelPicker = false },
+            title = stringResource(R.string.chat_model_picker_title),
+            quality = quality,
+            hazeState = hazeState,
+            contentHeightHint = modelPickerHeightHint(state.providers),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = dockSpace + 8.dp),
+        ) {
+            ModelPickerSheet(
+                providers = state.providers,
+                activeProviderId = state.activeProviderId,
+                activeModel = state.activeModel,
+                isPrism = true,
+                showTitle = false,
+                onSelect = { providerId, model ->
+                    onModelSelected(providerId, model)
+                    showModelPicker = false
+                },
+                onGoSettings = {
+                    showModelPicker = false
+                    onOpenSettings()
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }

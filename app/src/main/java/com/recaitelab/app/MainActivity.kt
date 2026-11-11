@@ -86,6 +86,7 @@ import com.recaitelab.app.domain.model.AppearanceMode
 import com.recaitelab.app.domain.model.GlassQuality
 import com.recaitelab.app.ui.chat.ChatScreen
 import com.recaitelab.app.ui.chat.ChatViewModel
+import com.recaitelab.app.ui.chat.PrismChatOverlay
 import com.recaitelab.app.ui.history.HistoryScreen
 import com.recaitelab.app.ui.history.HistoryViewModel
 import com.recaitelab.app.ui.knowledge.KnowledgeDetailScreen
@@ -113,6 +114,7 @@ import com.recaitelab.app.ui.settings.SettingsEvent
 import com.recaitelab.app.ui.settings.SettingsScreen
 import com.recaitelab.app.ui.settings.SettingsViewModel
 import com.recaitelab.app.ui.theme.LocalAppDesignSystem
+import com.recaitelab.app.ui.theme.LocalPrismChatInputHeight
 import com.recaitelab.app.ui.theme.LocalPrismDockSpace
 import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import dev.chrisbanes.haze.HazeState
@@ -168,6 +170,8 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
     }
 
     val isPrism = LocalAppDesignSystem.current == AppDesignSystem.PRISM_GLASS
+    val chatState by chatViewModel.uiState.collectAsState()
+    val chatInputHeight = remember { mutableStateOf(80.dp) }
 
     if (isPrism) {
         val glassQuality = LocalGlassQuality.current
@@ -186,8 +190,17 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
         } else {
             PrismTheme.colors.background
         }
+        val chatActive = currentDestination
+            ?.hierarchy
+            ?.any { destination -> destination.hasRoute(ChatRoute::class) }
+            ?: true
 
-        CompositionLocalProvider(LocalPrismDockSpace provides dockSpace) {
+        // 整页 NavHost 作为 Haze source；顶栏/输入区/Sheet 在 NavHost 外层绘制，
+        // 因此可以采样整页内容，而不会被 source 的子树裁掉。
+        CompositionLocalProvider(
+            LocalPrismDockSpace provides dockSpace,
+            LocalPrismChatInputHeight provides chatInputHeight.value,
+        ) {
             Box(modifier = Modifier.fillMaxSize().background(backdrop)) {
                 NavHost(
                     navController = navController,
@@ -218,6 +231,21 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
                         .align(Alignment.BottomCenter)
                         .padding(horizontal = 20.dp)
                         .padding(bottom = navBarBottom + 8.dp),
+                )
+            }
+            if (chatActive) {
+                PrismChatOverlay(
+                    state = chatState,
+                    quality = glassQuality,
+                    hazeState = hazeState,
+                    dockSpace = dockSpace,
+                    onInputChange = chatViewModel::onInputChange,
+                    onSend = chatViewModel::send,
+                    onStop = chatViewModel::stop,
+                    onModelSelected = chatViewModel::selectModel,
+                    onOpenSettings = { navController.navigateToTab(SettingsRoute) },
+                    onInputHeightChanged = { chatInputHeight.value = it },
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
             }

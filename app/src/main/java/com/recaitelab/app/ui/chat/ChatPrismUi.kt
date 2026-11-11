@@ -70,6 +70,8 @@ fun PrismChatTopBar(
                 quality = quality,
                 hazeState = hazeState,
                 shape = shapes.large,
+                shadowElevation = 0.dp,
+                showBorder = false,
             )
             .height(56.dp)
             .padding(horizontal = 12.dp),
@@ -184,6 +186,8 @@ fun PrismChatInputBar(
                 quality = quality,
                 hazeState = hazeState,
                 shape = shapes.large,
+                shadowElevation = 0.dp,
+                showBorder = false,
             )
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.Bottom,
