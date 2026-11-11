@@ -158,7 +158,8 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
 
     if (isPrism) {
         val glassQuality = LocalGlassQuality.current
-        val hazeState = rememberHazeState(blurEnabled = glassQuality == GlassQuality.STANDARD)
+        // ULTRA 也需要真实背景模糊；只有 OFF 关闭模糊、走不透明降级。
+        val hazeState = rememberHazeState(blurEnabled = glassQuality != GlassQuality.OFF)
         val navBarBottom = WindowInsets.navigationBars
             .asPaddingValues()
             .calculateBottomPadding()

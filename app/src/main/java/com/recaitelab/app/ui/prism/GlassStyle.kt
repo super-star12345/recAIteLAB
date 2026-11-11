@@ -6,7 +6,8 @@ import androidx.compose.ui.unit.dp
  * Prism Standard Glass 的唯一材质参数入口。
  *
  * 目标为「半透明 + 轻磨砂」：10dp 左右的背景模糊、按深浅色分别控制的 tint，
- * 1dp 细边缘高光与轻微阴影。T5 若扩展 Ultra，在保持该基线的同时新增参数，
+ * 1dp 细边缘高光与轻微阴影。单个页面的材质覆盖（如 ULTRA Dock 更薄的模糊与
+ * 更低的 tint）放在各自的 Spec 中，通过 [prismGlassSurface] 的参数显式传入，
  * 不要把魔法值散落回页面。
  */
 object GlassStyle {
