@@ -7,32 +7,29 @@
 > 交接文档本身可能处于「已修改未提交」状态，以 `git status` 为准。
 > 只在用户明确要求交接时更新本文件，不要每个任务后自动改。
 
-## 0. 当前快照（2026-11-07 20:51）
+## 0. 当前快照（2026-11-11 19:47）
 
 | 项 | 值 |
 |---|---|
 | 应用版本 | **4.5.1**（versionCode **451**） |
 | 包名 / applicationId | `com.recaitelab.app` |
-| 分支 / HEAD | `feature/prism-glass` @ `f8d96e0`（与本地 `main` 同一 commit） |
+| 分支 / HEAD | `feature/prism-glass` @ `71c2aac`（本 HANDOFF 随后单独提交） |
 | 远端 | `origin = https://github.com/super-star12345/recAIteLAB.git`（Public）；`origin/main` = `dfdbd54` |
-| 工作树 | 未提交：4 项基线问题修复（`Theme.kt` / `Color.kt` / `MarkdownPreview.kt` / `HistoryViewModel.kt` / `KnowledgeScreen.kt` / 新单测）、`HANDOFF.md`、`docs/`；`local.properties` / `keystore.properties` / `*.jks` / `build/` 被忽略 |
+| 工作树 | 代码与文档已提交；本次仅更新 `HANDOFF.md` 后推送 |
 | 编译 / 测试 | `.\gradlew.bat assembleDebug` 通过；`testDebugUnitTest` **58/58** 通过（8 个测试类） |
-| 真机 | 已连接：V2463A / Android 17（SDK 37）/ 1440×3168 / density 640；已装修复版 debug `4.5.1 / 451`（2026-11-07 21:01，数据保留） |
-| 基线截图 | **10 张已完成**，已按修复后界面重拍（完整 1440×3168）→ `docs/baseline/screenshots/` |
-| 下一阶段 | Prism Glass **T1：双主题架构 + 静态预览** |
+| 真机 | 已连接 V2463A / Android 17；已装 debug `4.5.1 / 451`（2026-11-11 19:47，数据保留） |
+| 下一阶段 | **T4 已完成**；T5 尚未开始，等产品确认 |
 
-**推送状态**：`feature/prism-glass` **已推送**（`origin/feature/prism-glass`，2026-11-07）。
-本地 `main` 仍领先 `origin/main` **1 个提交**（`f8d96e0` 对话页 Markdown 标题紧凑化，T0 前置小修），尚未推送。
-`origin/main`（`dfdbd54`）已包含 4.5.1 全部功能、README 与 GPLv3 LICENSE。
+**推送状态**：`feature/prism-glass` 本地领先 `origin/feature/prism-glass`，本次连同本文件一起推送。
+本地 `main` 仍领先 `origin/main` **1 个提交**（`f8d96e0` 对话页 Markdown 标题紧凑化），尚未推送。
+`origin/main`（`dfdbd54`）已包含 4.5.1 功能、README 与 GPLv3 LICENSE。
 
 **重要**：
 - `local.properties` 里仍有真实 DeepSeek Key（**不要读取、打印或提交**）。
 - Provider / 会话 / 消息 / 知识条目均已持久化；Key 只在 Keystore 加密后落 DataStore。
-- 真机数据（2026-11-07 实查）：8 个会话、3 条知识条目（id 2/3/4，均带 tags）、
-  2 个 Provider（DeepSeek 为当前，另有 KIMI）；覆盖安装后数据均保留。
-- 本 HANDOFF 上次快照（2026-10-31）已明显落后，本次（2026-11-07）按实际代码校正：
-  新增主题设置（3 套配色 + 动态取色）、两级设置页、Markdown 渲染与代码块复制、统一错误映射、
-  上下文裁剪、58 个 JVM 单测、release 签名与 R8、自适应/单色图标、README + GPLv3。
+- Prism T1–T4 已落地：设计系统切换、页面转场、Standard Glass、悬浮 Dock、模型 SnapSheet、
+  弹性按压与 Dock 选中指示器；**ULTRA 仍未实现**，只保留设置占位。
+- 本文件此前快照（2026-11-07）已明显落后，本次（2026-11-11）按实际代码校正。
 
 ---
 
@@ -130,7 +127,7 @@ debugImplementation androidx.compose.ui:ui-tooling
 ```
 com.recaitelab.app
 ├── RecAIteLabApplication.kt   # 进程入口：AppContainer.initialize(context)
-├── MainActivity.kt            # 主题包裹 + 根 Scaffold + NavigationBar + NavHost（4 Tab + 3 二级页）
+├── MainActivity.kt            # 双设计系统根布局：Material Scaffold+NavigationBar / Prism 根 Box+悬浮 Dock + NavHost（4 Tab + 3 二级页）
 ├── di/AppContainer.kt         # 手动 DI：Room/DataStore/Key/各 Repository/Organizer
 ├── domain/model/              # 纯 Kotlin + kotlinx.serialization
 │   ├── ChatMessage / ChatCompletionRequest / ChatCompletionChunk
@@ -165,7 +162,8 @@ com.recaitelab.app
 │   ├── KnowledgePayloadParser.kt # JSON 解析/兜底（单测）
 │   ├── ErrorMapper.kt         # 异常 → UserError，统一错误文案
 │   └── ChatConfigurationException.kt
-├── ui/theme/                  # 3 套配色 × 深浅（青绿/护眼绿/商务蓝）+ M3 默认字阶
+├── ui/theme/                  # 3 套配色 × 深浅（青绿/护眼绿/商务蓝）+ M3 默认字阶；RecAIteLABTheme 提供设计系统/玻璃档位
+├── ui/prism/                  # PrismTheme（Colors/Shapes/Motion）、GlassStyle、PrismGlassSurface、PrismComponents、PrismSnapSheet、PrismInteraction、PrismPreview/TransitionDemo
 ├── ui/navigation/AppRoutes.kt # 4 个一级 Tab + 3 个二级路由
 ├── ui/chat/                   # ChatScreen / ChatViewModel / ChatUiState
 ├── ui/history/                # HistoryScreen / HistoryViewModel / HistoryUiState
@@ -202,13 +200,16 @@ com.recaitelab.app
   - **模型选择** → `ModelSettingsScreen`：Provider 卡片列表（当前项 RadioButton、编辑、删除、添加）、
     内联 Provider 表单（名称 / Base URL / API Key / 拉取模型 / 手动增删 / 选择模型）。
     **没有**独立的 `ProviderEditRoute`，编辑在模型选择页内联完成。
-- 主题实现：`ui/theme/Color.kt` 提供 6 个 `ColorScheme`（3 配色 × 深浅）；`RecAIteLABTheme`
-  只设置 `colorScheme` + `typography`，**未自定义 shapes**；动态取色开启时覆盖所选配色。
-- 主题持久化：DataStore `settings` 的 `theme_mode` / `color_theme` / `dynamic_color_enabled` →
-  `SettingsViewModel` combine → `MainActivity` 收集后重组 `RecAIteLABTheme`，切换不重启 Activity。
-- **Prism Glass（T1 待做）**：需在此基础上新增 `AppDesignSystem { MATERIAL_3, PRISM_GLASS }`、
-  4 种 Prism 配色、`ui/prism/` 包与形状/动效/玻璃组件；默认仍 MATERIAL_3，旧界面不变。
-  完整基线与约束见 `docs/prism-theme-baseline.md`。
+- 主题实现：`ui/theme/Color.kt` 提供 6 个 `ColorScheme`（3 配色 × 深浅）；Material 3 仍使用这套
+  `colorScheme` + `typography`；Prism 模式改用 `PrismColors`（4 种风格 × 深浅，由 seed HSL 生成）。
+- **Prism 设计系统（T1–T4 已完成）**：
+  - `AppDesignSystem { MATERIAL_3, PRISM_GLASS }`、`GlassQuality { OFF, STANDARD, ULTRA(占位) }`、
+    `PrismColorStyle` 4 套、Prism seed；均持久化到 DataStore `settings`。
+  - `ui/prism/PrismTheme.kt` 提供 `PrismTheme { colors, shapes, motion }`；`RecAIteLABTheme` 在
+    Prism 模式包裹 `PrismTheme` 并注入 `LocalAppDesignSystem` / `LocalGlassQuality` / `LocalPrismDockSpace`。
+  - 外观设置页有「设计系统 / Prism 配色 / 玻璃质量」入口与静态预览页；默认仍 `MATERIAL_3`。
+  - Standard Glass 参数集中在 `ui/prism/GlassStyle.kt`；页面只调用 `Modifier.prismGlassSurface`。
+  - 具体实现见 §3.6 与 `docs/prism-theme-baseline.md`。
 
 ### 3.3 Provider / 持久化 / 历史 / 知识库
 
@@ -237,18 +238,19 @@ com.recaitelab.app
 
 ### 3.4 导航与 IME
 
-- `MainActivity`：`Scaffold + NavHost`；一级路由 Chat/History/Knowledge/Settings，二级
-  KnowledgeDetail / SettingsAppearance / SettingsModels；Tab 切换
-  `saveState/restoreState/launchSingleTop/popUpTo(start)`。
+- `MainActivity`：Material 模式为 `Scaffold + NavigationBar + NavHost`；Prism 模式为根 `Box` +
+  全屏 `NavHost` + `align(BottomCenter)` 的悬浮 `PrismBottomBar`（胶囊、左右 20dp、底部系统栏 +8dp）。
+  一级路由 Chat/History/Knowledge/Settings，二级 KnowledgeDetail / SettingsAppearance / SettingsModels；
+  Tab 切换 `saveState/restoreState/launchSingleTop/popUpTo(start)`。
 - ViewModel 提到 Activity 作用域，Tab 切换不丢状态。
-- 底栏在一级 Tab **始终显示，包括 IME 弹起时**；只有二级页隐藏。底栏不随键盘显隐、不 add imePadding、
-  不做高度动画。
+- Material 底栏在一级 Tab **始终显示，包括 IME 弹起时**；只有二级页隐藏。Prism Dock 同样只在一级页显示，
+  始终悬浮在内容之上、不随键盘显隐、不 add imePadding、不做高度动画。
 - Manifest：Activity `android:windowSoftInputMode="adjustResize"`；`allowBackup="false"`。
-- 根 `Scaffold` `contentWindowInsets = WindowInsets(0,0,0,0)`；NavHost `padding + consumeWindowInsets`；
-  状态栏由各页 TopAppBar / Scaffold 处理，导航栏由常驻 NavigationBar 处理。
-- ChatScreen：内层 `Scaffold` 只保留 topBar，`contentWindowInsets = 0`；content 为明确 `Column`：
-  消息区 `Box(weight(1f))`（内部 LazyColumn），`ChatInputBar` 作为最后一个固定子项，始终位于底栏上方。
-- IME：只在 `ChatInputBar` 使用一次 `Modifier.imePadding()`；根布局、消息列表、NavigationBar 不消费 IME
+- Material 根 `Scaffold` `contentWindowInsets = WindowInsets(0,0,0,0)`；NavHost `padding + consumeWindowInsets`。
+- ChatScreen Material：内层 `Scaffold` + `Column`；消息区 `Box(weight(1f))`，`ChatInputBar` 是最后一个固定子项。
+- ChatScreen Prism：消息层全屏作为 Haze source；顶部模型栏、输入区、模型 SnapSheet 都是悬浮 overlay；
+  输入区与 Dock 之间由 `LocalPrismDockSpace` 预留间距；消息列表底部按实测输入高度 + Dock 留白。
+- IME：Material/Prism 都只消费一次 `Modifier.imePadding()`（对话输入区）；根布局、消息列表、Dock 不消费 IME
   insets。设置页 Provider 表单根保留自身一次 `imePadding()`。
 - 图标：自适应图标含 `monochrome` 图层（Android 13+ 主题图标）。
 
@@ -269,13 +271,42 @@ DEEPSEEK_MODEL=deepseek-chat                    # 可省略
 - 2026-10-31 实测 DeepSeek `/models` 返回 `deepseek-flash`、`deepseek-v4-pro`（不含种子 `deepseek-chat`）；
   拉取后若原选中模型不在列表则自动选第一个，保存后写回 ProviderConfig。
 
+### 3.6 Prism Glass（T1–T4，已完成，ULTRA 未实现）
+
+- **设计系统**：`ui/prism/PrismTheme.kt` 的 `PrismTheme { colors, shapes, motion }`；`PrismColors`
+  4 种风格 × 深浅（seed HSL 生成），`PrismShapes` 使用 `PrismCornerShape` 连续圆角，`PrismMotion`
+  集中页面/按压/指示器弹簧。`RecAIteLABTheme` 在 Prism 模式包裹并注入 `LocalAppDesignSystem`、
+  `LocalGlassQuality`、`LocalPrismDockSpace`；Material 3 路径不变。
+- **Standard Glass**：参数集中在 `ui/prism/GlassStyle.kt`；`Modifier.prismGlassSurface`
+  负责 `shadow → clip → Haze hazeEffect → 1dp 高光 border`，同一 shape 贯穿。
+  - 模糊 **10dp**；底色 alpha 浅 **0.25** / 深 **0.32**；tint 浅 **0.45** / 深 **0.55**；
+    描边 **1dp**、阴影 **8dp**、noise **0.03**、低版本 fallback **0.86**。
+  - `OFF` / `ULTRA(未实现)` → 不透明 `surfaceHigh` + 描边 + 轻阴影；`STANDARD` + Android 12+ 才真模糊，
+    低版本走 Haze fallback。
+- **应用范围**：悬浮 Dock、对话顶部模型栏、对话输入区、模型 SnapSheet 使用玻璃；
+  Dock 选中指示器只用 `primaryContainer` tint（`GlassStyle.IndicatorTintAlpha = 0.55`，不建采样层）；
+  消息气泡、列表项、Sheet 行都不单独加模糊。顶栏/输入区保持透明背景链，无白底色块。
+- **Dock**：根 Box `align(BottomCenter)`，左右 20dp、底部 `navigationBars + 8dp`，胶囊
+  `RoundedCornerShape(percent = 50)`；`LocalPrismDockSpace = 80.dp + 系统导航栏` 由页面预留。
+  单个选中指示器按 Tab 实测 bounds 动画位置/宽度（spring 0.90 / 500），Tab 按压统一走
+  `prismPressFeedback`（scale 0.975、alpha 0.96、spring 0.90 / 650）。
+- **PrismSnapSheet**：可复用吸附面板，状态 `CLOSED / HALF / EXPANDED`；锚点 **45% / 85%**，
+  由内容高度提示截断（模型少时自然收缩）；关闭阈值 **25%**、速度投影 **0.12s**、
+  fling **1400 px/s**、吸附 spring **0.88 / 520**；28dp 连续圆角、20dp 水平边距。
+  把手下拉/上推 + 列表到顶后的未消费下拉驱动收起；`BackHandler`/遮罩可关闭；
+  模型选择仍走原 `ChatViewModel.selectModel` → `ProviderRepository`。
+- **页面转场**：Prism 二级页 push/pop 使用 slide + 前页后退 30% + fade 到 0.9（黑底承托、
+  10% 暗化），名义 300ms / spring 1.0 / 400；Tab 间 fade-through 200/160ms；Material 保持默认转场。
+- **宽屏边界**：玻璃 Modifier 接受任意 `Shape` + `HazeState`，未写死 Dock；桌面侧栏模糊留待
+  宽屏布局阶段实现（见 `docs/prism-theme-baseline.md` 第 8 节），本阶段不新增桌面平台或侧栏。
+
 ---
 
 ## 4. 构建 / 安装 / 运行
 
 ```powershell
 cd F:\Mr.Peng\code\recAIteLAB
-.\gradlew.bat assembleDebug        # 产物：app\build\outputs\apk\debug\app-debug.apk（约 20.9MB）
+.\gradlew.bat assembleDebug        # 产物：app\build\outputs\apk\debug\app-debug.apk（约 24.8MB）
 .\gradlew.bat testDebugUnitTest    # 8 个测试类 / 58 个用例
 ```
 
@@ -303,14 +334,17 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 - 真机：`10AF5T05EL001BF`（vivo V2463A / Android 17 / SDK 37 / arm64-v8a / 1440×3168 / density 640）。
 - 2026-11-07 20:41 已用 `pm install -r -t` 覆盖安装 **4.5.1 / 451**（基线 commit `f8d96e0`），数据保留；
   设备可正常连接。
+- 2026-11-11 19:47 已用 `pm install -r -t` 覆盖安装 **4.5.1 / 451**（Prism T4 代码 commit `71c2aac`），
+  APK 约 **24.8MB**，数据保留；安装后未自动启动。
+- 2026-11-11 构建验证：`assembleDebug` 与 `testDebugUnitTest` 通过（58/58）。
 - **锁屏/休眠时 `pm install` 会报 `INSTALL_FAILED_ABORTED: User rejected permissions`**；解锁并回桌面后重试。
 - `.\gradlew.bat installDebug` 也常被 vivo 安装确认拦截；优先用 `pm install`。
 - 2026-11-07 验证（构建层）：`testDebugUnitTest` 58/58；`assembleDebug` 通过；
   另用 `:app:compileDebugKotlin --rerun` 强制重编译通过。
 - 2026-11-07 真机已验证：四 Tab 切换、历史列表、知识库列表/详情（Markdown + 代码块 + 复制按钮）、
   两级设置页、外观页、主题浅/深切换、Markdown 对话渲染；10 张基线截图已产出。
-- 真机仍缺验证：流式对话发送/停止/重试（本次输入法把英文注入转成中文候选，未发送新消息）、
-  知识整理全流程、模型选择 BottomSheet、护眼绿/商务蓝配色、release 包冒烟。
+- 真机仍缺验证：Prism T4 新交互（Dock 指示器连续切换、SnapSheet 拖拽/回弹、玻璃在深浅色与
+  OFF/STANDARD 下的观感）、流式对话发送/停止/重试、知识整理全流程、护眼绿/商务蓝配色、release 包。
 - release 已配置签名（`keystore.properties` + `recaitelab-release.jks`，均忽略）与 R8/资源裁剪，
   但**尚未构建并真机冒烟 release 包**。
 
@@ -333,7 +367,7 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
    网络正常。查 Maven 版本或下载依赖请交给 Gradle，或写临时 Java 单文件程序，不要据此判定断网。
 10. **Room/KSP 首次构建慢**：首次 `assembleDebug` 可能约 5 分钟，之后增量正常。
 11. **Markdown 库体积**：`multiplatform-markdown-renderer-m3:0.46.0` 引入 Compose Multiplatform 适配层；
-    debug APK 约 20.9MB。已由用户确认允许，仅此一个渲染库。
+    debug APK 约 24.8MB。已由用户确认允许，仅此一个渲染库。
 12. **Gradle File watcher 噪音**：本沙箱构建偶发 `File watcher server ... Couldn't open current thread, error = 5`
     到 stderr，**构建仍成功**，可忽略，不要据此改配置。
 13. **HANDOFF / 截图策略**：HANDOFF 只在用户要求交接时更新；临时截图放 `build\tmp\`
@@ -343,57 +377,60 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 15. **`adb shell input text` 会被中文输入法改造**：2026-11-07 实测，注入英文时输入法把部分字母组合成中文候选，
     且 `%s` 空格失效，结果不可用。真机自动化输入中文/英文前，先切换为纯英文输入法或改用剪贴板/其他注入方式；
     不要用 `input text` 的结果判断 UI 是否正常。
+16. **KSP 增量缓存损坏**：构建报 `ksp.net.jpountz.lz4.LZ4Exception: Malformed input` 时，
+    删除 `app\build\kspCaches` 后重跑即可（2026-11-11 实际遇到一次，非代码问题）。
+17. **Haze 玻璃性能**：只为 Dock / 顶栏 / 输入区 / SnapSheet 建玻璃层，不要把 `prismGlassSurface`
+    套到每个 Tab、列表行或 Sheet 条目；低版本 Haze 自动 fallback，不要手写第二套模糊。
 
 ---
 
 ## 6. Git 状态
 
-- 当前分支 `feature/prism-glass`（T0 新建）@ `f8d96e0`；本地 `main` 同一 commit，领先 `origin/main` 1 个提交。
-- `origin/main` = `dfdbd54 docs: add README and GPLv3 license`（已含 4.5.1 全部功能）。
-- 已提交：全部源码、`CLAUDE.md`、`PRD.md`、`README.md`、`LICENSE`（GPLv3）、Room schema、JUnit 测试、图标资源。
-- 未提交：4 项基线问题修复 + `HANDOFF.md` + `docs/`，等待用户验收后提交：
-  - 修改：`ui/theme/Theme.kt`、`ui/theme/Color.kt`、`ui/history/HistoryViewModel.kt`、`ui/knowledge/KnowledgeScreen.kt`
-  - 新增：`ui/common/MarkdownPreview.kt`、`app/src/test/.../MarkdownPreviewTest.kt`
-  - 文档：`docs/prism-theme-baseline.md`、`docs/baseline/screenshots/`（10 张 PNG，已重拍为修复后状态）
+- 当前分支 `feature/prism-glass`；功能提交 `71c2aac feat: polish prism interactions and standard glass`。
+  该分支已包含 T1–T4 全部 Prism 改动（`614c830` → `71c2aac` 共 7 个提交）。
+- 本 `HANDOFF.md` 更新为独立提交，随后与功能提交一起推送 `origin/feature/prism-glass`。
+- 本地 `main` 仍领先 `origin/main` 1 个提交（`f8d96e0` 对话页 Markdown 标题紧凑化），尚未推送。
+- `origin/main` = `dfdbd54 docs: add README and GPLv3 license`（已含 4.5.1 功能）。
+- 已提交：全部源码、`CLAUDE.md`、`PRD.md`、`README.md`、`LICENSE`（GPLv3）、Room schema、JUnit 测试、图标资源、
+  Prism 文档与基线截图。
 - 忽略：`local.properties`、`keystore.properties`、`*.jks` / `*.keystore`、`build/`、`.gradle/`、`*.apk`、`.idea/`、`.kotlin/`。
 - 提交前扫描源码无 `sk-*` 明文；**不得提交** `local.properties`、debug APK、签名材料。
-- 已推送 `feature/prism-glass`（2026-11-07）；本地 `main` 仍领先 `origin/main` 1 个提交，需要时执行 `git push origin main`。
-- 沙箱内 `git push` 会因无法创建管道/调用凭据助手失败（`couldn't create signal pipe`），需要放宽沙箱权限后重试；不要据此判断断网。
+- 沙箱内 `git push` 偶发因无法创建管道/凭据助手失败（`couldn't create signal pipe`），需要放宽沙箱权限后重试；
+  不要据此判断断网。
 
 ---
 
 ## 7. 已知缺口 / 下一阶段
 
-已完成（截至 2026-11-07）：
+已完成（截至 2026-11-11）：
 
 - Room 数据层（Provider / Conversation / Message / KnowledgeEntry）+ schema v1；
-- Provider 配置、激活项、模型选择持久化；Keystore 加密 Key；DataStore 偏好（含主题）；
+- Provider 配置、激活项、模型选择持久化；Keystore 加密 Key；DataStore 偏好（含主题/设计系统）；
 - 会话/消息持久化、启动恢复、严格会话隔离（含 JUnit 回归测试）；
 - 四 Tab 导航、历史记录（新建/打开/重命名/删除/整理为知识）、知识库列表/搜索/删除/详情/Markdown；
 - 知识整理服务（JSON 解析 + 兜底落库）；统一错误映射与重试；
 - 对话页 Markdown 渲染（CHAT 紧凑样式）、代码块复制、上下文裁剪（20 条）；
 - 主题：外观模式 + 3 套配色 + 动态取色；两级设置导航；自适应/单色图标；
 - release 签名与 R8 配置；58 个 JVM 单测；
-- **T0 基线问题修复（2026-11-07）**：系统栏图标明暗跟随主题、补全 `surfaceContainer*` 色板、
-  历史预览剥离 Markdown（新增 `MarkdownPreview` + 单测）、知识库 tags 换行；已装真机并由用户人工验证通过，
-  基线截图已按修复后界面重拍。
-- **Prism T0**：`feature/prism-glass` 分支、基线 commit、构建/测试记录、`docs/prism-theme-baseline.md`、
-  `docs/baseline/screenshots/` 10 张真机基线截图；真机已装 4.5.1/451。
+- **T0 基线问题修复**：系统栏图标明暗跟随主题、补全 `surfaceContainer*` 色板、
+  历史预览剥离 Markdown、知识库 tags 换行；基线截图已重拍。
+- **Prism T1–T4**：
+  - T1：Prism tokens（4 配色 × 深浅 / 连续圆角 / 动效）、DataStore 设计系统与玻璃档位、设置页与静态预览；
+  - T2：二级页 push/pop 转场、预览页按压反馈；
+  - T3：Haze 1.7.3 Standard Glass 与低版本降级；
+  - T4：设置/历史/知识/对话页 Prism 铺开、悬浮 Dock、SnapSheet 模型选择、弹性按压、
+    Dock 弹簧选中指示器、可选 Standard Glass；White-background 清理。
+- 真机已装 T4 版本（4.5.1/451，2026-11-11 19:47），数据保留。
 
 仍缺 / 下一步：
 
-1. **Prism T1（下一步）**：DataStore 新增 `design_system` / `prism_color_style` / `prism_seed_color` /
-   `glass_quality`；建立 `ui/prism/`（PrismTheme、Colors、Shapes、Motion、Components、Navigation、glass）；
-   4 种配色 × 深浅；设置页「界面风格」+ 静态预览页；默认仍 MATERIAL_3，不改正式页面。
-   设计文档：`F:\Mr.Peng\code\recAIteLAB Workflows\prism-glass-theme-plan.md`（T1–T6）。
-2. **T0 基线问题**（详见 `docs/prism-theme-baseline.md` 第 7 节）：
-   - 已修复（构建通过，用户人工验证通过）：浅色状态栏图标不可见、`NavigationBar`/知识卡片/FAB 紫调、
-     历史预览 Markdown 源码、知识库 tags 被时间覆盖；
-   - 保留：聊天 LaTeX 纯文本展示、FAB 遮挡列表末条。
+1. **T5 尚未开始**（等产品确认）：Ultra 不实现、不引入 RuntimeShader、不做折射/色散；
+   当前 `ULTRA` 仅设置占位，按 OFF 显示。
+2. **宽屏 / 桌面侧栏**：本阶段不新增桌面平台或响应式侧栏；Sidebar 玻璃模糊留待宽屏布局阶段实现。
 3. 阶段 5 剩余：token 统计、思考链、多模态、联网搜索；`clear()` UI 入口；聊天上下文 32k 字符上限。
 4. 阶段 6：release 包真机冒烟、隐私与权限复核；ProviderRepository / 网络层补测试。
-5. 真机仍缺验证：流式对话发送/停止/重试、知识整理全流程、模型选择 BottomSheet、
-   护眼绿/商务蓝配色、单色图标、release 包。
+5. 真机仍缺验证：Prism T4 新交互（Dock 指示器连续切换、SnapSheet 拖拽/回弹、深浅色/OFF/STANDARD 玻璃观感）、
+   流式对话发送/停止/重试、知识整理全流程、护眼绿/商务蓝配色、单色图标、release 包。
 
 ---
 
@@ -404,8 +441,9 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 - 状态提升：Screen 只接收 state + 回调，不访问 Repository/ViewModel。
 - 网络只走 OkHttp（未引入 Retrofit）；JSON 统一 kotlinx.serialization + `openAiJson`。
 - 调试配置只从 `local.properties` 进 BuildConfig（debug）；业务代码不直接读 `BuildConfig.DEEPSEEK_*`。
-- 当前版本 **4.5.1 / 451**；真机已装 4.5.1（2026-11-07 覆盖安装）。
+- 当前版本 **4.5.1 / 451**；真机已装 4.5.1（2026-11-11 19:47 覆盖安装，数据保留）。
 - 临时截图 / 调试产物统一放 `build\tmp\`；Prism 基线截图清单见 `docs/prism-theme-baseline.md`。
 - 用户要求：**不要每个任务自动安装/打开/截图**；只有明确要求时才装真机。HANDOFF 也只在要求交接时更新。
 - Prism Glass 约束（详见 `docs/prism-theme-baseline.md` 第 5 节）：不引入 Flutter、不删除 Material 3、
-  不修改 ViewModel/Repository、不复制两套业务逻辑；默认 MATERIAL_3；IME 与底栏常驻行为必须保留。
+  不修改 ViewModel/Repository、不复制两套业务逻辑；默认 MATERIAL_3；IME 单次消费与「一级页 Dock 常驻」
+  行为必须保留。ULTRA 未实现，不引入 RuntimeShader/折射/色散。
