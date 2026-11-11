@@ -7,17 +7,17 @@
 > 交接文档本身可能处于「已修改未提交」状态，以 `git status` 为准。
 > 只在用户明确要求交接时更新本文件，不要每个任务后自动改。
 
-## 0. 当前快照（2026-11-11 20:52）
+## 0. 当前快照（2026-11-11 21:48）
 
 | 项 | 值 |
 |---|---|
 | 应用版本 | **4.5.1**（versionCode **451**） |
 | 包名 / applicationId | `com.recaitelab.app` |
-| 分支 / HEAD | `feature/prism-glass` @ `028c687`（本 HANDOFF 随后单独提交） |
+| 分支 / HEAD | `feature/prism-glass` @ `81764f9`（本 HANDOFF 随后单独提交） |
 | 远端 | `origin = https://github.com/super-star12345/recAIteLAB.git`（Public）；`origin/main` = `dfdbd54` |
 | 工作树 | 代码与文档已提交；本次仅更新 `HANDOFF.md` 后推送 |
 | 编译 / 测试 | `.\gradlew.bat assembleDebug` 通过；`testDebugUnitTest` **58/58** 通过（8 个测试类） |
-| 真机 | 已连接 V2463A / Android 17；已装 debug `4.5.1 / 451`（2026-11-11 20:52，数据保留） |
+| 真机 | 已连接 V2463A / Android 17；已装 debug `4.5.1 / 451`（2026-11-11 21:48，数据保留） |
 | 下一阶段 | **T4 已完成**；T5 尚未开始，等产品确认 |
 
 **推送状态**：`feature/prism-glass` 本地领先 `origin/feature/prism-glass`，本次连同本文件一起推送。
@@ -290,14 +290,18 @@ DEEPSEEK_MODEL=deepseek-chat                    # 可省略
   在 `PrismChatOverlay`（NavHost 外层）绘制，因此能采样整页内容，而不是只采样消息列表。
   ChatScreen 只保留消息列表，通过 `LocalPrismChatInputHeight` 获取 overlay 实测的输入区高度。
 - **应用范围**：悬浮 Dock、对话顶部模型栏、对话输入区、模型 SnapSheet 使用玻璃；
-  Dock 选中指示器只用 `primaryContainer` tint（`GlassStyle.IndicatorTintAlpha = 0.55`，不建采样层）；
+  Dock 选中指示器只用 `primaryContainer` tint（`GlassStyle.IndicatorTintAlpha = 0.72`，不建采样层）；
   消息气泡、列表项、Sheet 行都不单独加模糊。
 - **白框教训**：顶栏/输入区必须直接复用 Dock 的 `prismGlassSurface` 默认配置；自定义
   `hazeBackground` 白色填充、`showBorder` 描边或额外阴影都会在浅色页面形成白框。
 - **Dock**：根 Box `align(BottomCenter)`，左右 20dp、底部 `navigationBars + 8dp`，胶囊
   `RoundedCornerShape(percent = 50)`；`LocalPrismDockSpace = 80.dp + 系统导航栏` 由页面预留。
-  单个选中指示器按 Tab 实测 bounds 动画位置/宽度（spring 0.90 / 500），Tab 按压统一走
-  `prismPressFeedback`（scale 0.975、alpha 0.96、spring 0.90 / 650）。
+  选中指示器按 Dock 实际宽度**等分槽位**（左右各扣 8dp），宽度/水平位置由 `selectedIndex`
+  与槽位宽计算，高度固定为 Dock 实测全高；胶囊裁剪，不随图标/文字测量。
+  指示器只动画 left/width（spring **0.72 / 450**），高度不参与弹簧；快速切换由当前值与速度改道。
+  Dock Tab 按压使用整槽位 `InteractionSource` + `fillMaxHeight`，显式 `Animatable` 缩放
+  **0.96 → 1f**（spring **0.35 / 420**，回弹峰值约 **1.012**），松手/连续点击从当前速度接续；
+  其它组件仍走 `prismPressFeedback` 的默认按压参数（0.975、spring 0.90 / 650）。
 - **PrismSnapSheet**：可复用吸附面板，状态 `CLOSED / HALF / EXPANDED`；锚点 **45% / 85%**，
   由内容高度提示截断（模型少时自然收缩）；关闭阈值 **25%**、速度投影 **0.12s**、
   fling **1400 px/s**、吸附 spring **0.88 / 520**；28dp 连续圆角、20dp 水平边距。
@@ -394,9 +398,9 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 
 ## 6. Git 状态
 
-- 当前分支 `feature/prism-glass`；功能提交 `028c687 fix: reuse dock glass for chat bars`，
-  整页 Haze 提交 `d54beac feat: sample the whole prism page with haze`。
-  该分支包含 T1–T4 全部 Prism 改动（`614c830` → `028c687`）。
+- 当前分支 `feature/prism-glass`；最新功能提交 `81764f9 fix: make dock selection and press springs visible`，
+  其前为 `849b83a fix: restore filled chat bar glass`、`d54beac feat: sample the whole prism page with haze`。
+  该分支包含 T1–T4 全部 Prism 改动（`614c830` → `81764f9`）。
 - 本 `HANDOFF.md` 更新为独立提交，随后与功能提交一起推送 `origin/feature/prism-glass`。
 - 本地 `main` 仍领先 `origin/main` 1 个提交（`f8d96e0` 对话页 Markdown 标题紧凑化），尚未推送。
 - `origin/main` = `dfdbd54 docs: add README and GPLv3 license`（已含 4.5.1 功能）。
@@ -431,7 +435,9 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
     Dock 弹簧选中指示器、可选 Standard Glass；White-background 清理。
   - T4 收尾：Haze source 改为整页 `NavHost`；顶栏/输入区/Sheet 移到 `PrismChatOverlay`
     （NavHost 外层），并直接复用 Dock 的玻璃默认配置，彻底去掉白框。
-- 真机已装 T4 版本（4.5.1/451，2026-11-11 20:52），数据保留。
+- 真机已装 T4 版本（4.5.1/451，2026-11-11 21:48），数据保留。
+- Dock 交互收尾：指示器四等分槽位、全 Dock 高度、只动画 left/width（spring 0.72 / 450）；
+  按压 0.96、spring 0.35 / 420、松手回弹峰值约 1.012；显式 `Animatable` 支持连续点击从当前速度接续。
 
 仍缺 / 下一步：
 
