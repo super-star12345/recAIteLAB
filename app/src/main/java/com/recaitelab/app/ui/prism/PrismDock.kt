@@ -2,9 +2,13 @@ package com.recaitelab.app.ui.prism
 
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,11 +35,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.recaitelab.app.domain.model.GlassQuality
 import dev.chrisbanes.haze.HazeState
@@ -56,6 +67,10 @@ data class PrismDockItem(
  *
  * P2 起 ULTRA 走更薄的模糊（[PrismDockSpec.BlurRadius]）与更低的 tint，并额外叠加顶部高光
  * 与指示器高光边；STANDARD/OFF 的材质仍由 [prismGlassSurface] 的默认参数渲染。
+ *
+ * P3 起支持：整条 Dock 按压缩放（[PrismMotion.dockContainerPressScale]）、选中图标放大
+ * （[PrismMotion.dockSelectedIconScale]）、横向拖动切换 Tab（跨槽触发一次触觉）。
+ * 拖动只改指示器 offset 与绘制，不改变 64dp 高度 / 槽位布局。
  */
 @Composable
 fun PrismDock(
@@ -70,27 +85,53 @@ fun PrismDock(
     val motion = PrismTheme.motion
     val density = LocalDensity.current
     val isUltra = quality == GlassQuality.ULTRA
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val haptic = LocalHapticFeedback.current
     var dockWidthPx by remember { mutableStateOf(0f) }
     var dockHeightPx by remember { mutableStateOf(0f) }
+    var dockPressed by remember { mutableStateOf(false) }
+    var dragging by remember { mutableStateOf(false) }
+    var dragOffset by remember { mutableStateOf(0f) }
+    var dragMoved by remember { mutableStateOf(false) }
+    var lastHoveredSlot by remember { mutableStateOf(selectedIndex) }
+
+    // 整条 Dock 的按压缩放走通用 press 弹簧；只改绘制，不影响测量与子项命中。
+    val pressSpring = spring<Float>(
+        dampingRatio = motion.pressSpringDamping,
+        stiffness = motion.pressSpringStiffness,
+    )
+    val dockScale by animateFloatAsState(
+        targetValue = if (dockPressed) motion.dockContainerPressScale else 1f,
+        animationSpec = pressSpring,
+        label = "dockContainerScale",
+    )
 
     // 槽位按 Dock 实际宽度等分，左右各扣除 Row 的内边距；
     // 不再依赖 Tab 内容 bounds，保证指示器始终落在槽位正中。
     val dockPaddingPx = with(density) { PrismDockSpec.InnerPadding.toPx() }
     val indicatorHeightPx = with(density) { PrismDockSpec.IndicatorHeight.toPx() }
-    val slotWidthPx = if (dockWidthPx > 0f && items.isNotEmpty()) {
-        (dockWidthPx - dockPaddingPx * 2f) / items.size
-    } else {
-        0f
-    }
+    val slotWidthPx = slotWidth(dockWidthPx, items.size, dockPaddingPx)
+    val baseLeft = indicatorLeftPx(dockWidthPx, items.size, dockPaddingPx, selectedIndex, isRtl)
     val indicatorTargetWidth = slotWidthPx
-    val indicatorTargetLeft = dockPaddingPx + selectedIndex * slotWidthPx
+    val rawIndicatorLeft = baseLeft + dragOffset
+    val indicatorTargetLeft = if (dockWidthPx > 0f && slotWidthPx > 0f) {
+        rawIndicatorLeft.coerceIn(dockPaddingPx, dockWidthPx - dockPaddingPx - slotWidthPx)
+    } else {
+        baseLeft
+    }
+    val dragRange = dragOffsetRange(selectedIndex, items.size, slotWidthPx, isRtl)
 
     val indicatorLeft by animateFloatAsState(
         targetValue = indicatorTargetLeft,
-        animationSpec = spring(
-            dampingRatio = motion.dockIndicatorDamping,
-            stiffness = motion.dockIndicatorStiffness,
-        ),
+        // 拖动中指示器直接跟手，松手恢复弹簧吸附。
+        animationSpec = if (dragging) {
+            snap()
+        } else {
+            spring(
+                dampingRatio = motion.dockIndicatorDamping,
+                stiffness = motion.dockIndicatorStiffness,
+            )
+        },
         label = "dockIndicatorLeft",
     )
     val indicatorWidth by animateFloatAsState(
@@ -123,6 +164,73 @@ fun PrismDock(
             .onSizeChanged {
                 dockWidthPx = it.width.toFloat()
                 dockHeightPx = it.height.toFloat()
+            }
+            // 只观察按下/抬起，不消费事件；放在 Initial pass 保证先于子项点击拿到手势。
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    dockPressed = true
+                    // 新手势开始即解除上一次拖动的点击保护。
+                    dragMoved = false
+                    try {
+                        var anyPressed = true
+                        while (anyPressed) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            anyPressed = event.changes.any { it.pressed }
+                        }
+                    } finally {
+                        dockPressed = false
+                    }
+                }
+            }
+            .pointerInput(selectedIndex, items.size, dockWidthPx, slotWidthPx, isRtl) {
+                if (slotWidthPx <= 0f) return@pointerInput
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        dragging = true
+                        dragOffset = 0f
+                        dragMoved = false
+                        lastHoveredSlot = selectedIndex
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragMoved = true
+                        dragOffset = (dragOffset + dragAmount).coerceIn(dragRange)
+                        val hovered = slotIndexAt(
+                            xPx = baseLeft + dragOffset + slotWidthPx / 2f,
+                            dockWidthPx = dockWidthPx,
+                            count = items.size,
+                            paddingPx = dockPaddingPx,
+                            rtl = isRtl,
+                        )
+                        if (hovered != lastHoveredSlot) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            lastHoveredSlot = hovered
+                        }
+                    },
+                    onDragEnd = {
+                        val target = slotIndexAt(
+                            xPx = baseLeft + dragOffset + slotWidthPx / 2f,
+                            dockWidthPx = dockWidthPx,
+                            count = items.size,
+                            paddingPx = dockPaddingPx,
+                            rtl = isRtl,
+                        )
+                        dragging = false
+                        dragOffset = 0f
+                        // 只在松手时切一次 Tab；拖动过程不触发导航。
+                        if (target != selectedIndex) onSelect(target)
+                    },
+                    onDragCancel = {
+                        dragging = false
+                        dragOffset = 0f
+                    },
+                )
+            }
+            // 整条 Dock 按压放大：包住玻璃层与内容，仅视觉效果。
+            .graphicsLayer {
+                scaleX = dockScale
+                scaleY = dockScale
             }
             .prismGlassSurface(
                 quality = quality,
@@ -188,13 +296,19 @@ fun PrismDock(
         ) {
             items.forEachIndexed { index, item ->
                 val selected = index == selectedIndex
+                val iconScale by animateFloatAsState(
+                    targetValue = if (selected) motion.dockSelectedIconScale else 1f,
+                    animationSpec = pressSpring,
+                    label = "dockIconScale$index",
+                )
                 Row(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .prismPressFeedback(
                             emphasized = true,
-                            onClick = { if (!selected) onSelect(index) },
+                            // 拖动中与拖动刚结束都不触发点击，避免松手后多切一次。
+                            onClick = { if (!selected && !dragging && !dragMoved) onSelect(index) },
                         ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
@@ -210,7 +324,13 @@ fun PrismDock(
                             Icon(
                                 imageVector = item.icon,
                                 contentDescription = null,
-                                modifier = Modifier.size(PrismDockSpec.IconSize),
+                                modifier = Modifier
+                                    .size(PrismDockSpec.IconSize)
+                                    // 只缩放绘制，24dp 尺寸与 32dp 图标盒保持不变。
+                                    .graphicsLayer {
+                                        scaleX = iconScale
+                                        scaleY = iconScale
+                                    },
                                 tint = if (selected) colors.primary else colors.onSurfaceVariant,
                             )
                         }

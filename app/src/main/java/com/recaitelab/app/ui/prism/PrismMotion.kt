@@ -28,6 +28,10 @@ data class PrismMotion(
     val dockPressScale: Float = 0.96f,
     val dockPressSpringDamping: Float = 0.35f,
     val dockPressSpringStiffness: Float = 420f,
+    /** Dock 整条按压：轻微放大；与 Tab 自身的缩小叠加，只改绘制不改布局。 */
+    val dockContainerPressScale: Float = 1.04f,
+    /** Dock 选中图标：轻微放大，避免布局跳动。 */
+    val dockSelectedIconScale: Float = 1.12f,
     /** Dock 选中指示器：位置/宽度弹簧；低阻尼产生可见但克制的过冲。 */
     val dockIndicatorDamping: Float = 0.72f,
     val dockIndicatorStiffness: Float = 450f,
