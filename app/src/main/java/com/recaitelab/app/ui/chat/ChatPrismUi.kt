@@ -41,6 +41,7 @@ import com.recaitelab.app.R
 import com.recaitelab.app.domain.model.GlassQuality
 import com.recaitelab.app.ui.common.MarkdownText
 import com.recaitelab.app.ui.common.MarkdownTextStyle
+import com.recaitelab.app.ui.prism.GlassStyle
 import com.recaitelab.app.ui.prism.PrismTheme
 import com.recaitelab.app.ui.prism.prismGlassSurface
 import com.recaitelab.app.ui.prism.prismPressFeedback
@@ -70,8 +71,6 @@ fun PrismChatTopBar(
                 quality = quality,
                 hazeState = hazeState,
                 shape = shapes.large,
-                shadowElevation = 0.dp,
-                showBorder = false,
             )
             .height(56.dp)
             .padding(horizontal = 12.dp),
@@ -186,8 +185,6 @@ fun PrismChatInputBar(
                 quality = quality,
                 hazeState = hazeState,
                 shape = shapes.large,
-                shadowElevation = 0.dp,
-                showBorder = false,
             )
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.Bottom,
