@@ -7,17 +7,17 @@
 > 交接文档本身可能处于「已修改未提交」状态，以 `git status` 为准。
 > 只在用户明确要求交接时更新本文件，不要每个任务后自动改。
 
-## 0. 当前快照（2026-11-11 19:47）
+## 0. 当前快照（2026-11-11 20:52）
 
 | 项 | 值 |
 |---|---|
 | 应用版本 | **4.5.1**（versionCode **451**） |
 | 包名 / applicationId | `com.recaitelab.app` |
-| 分支 / HEAD | `feature/prism-glass` @ `71c2aac`（本 HANDOFF 随后单独提交） |
+| 分支 / HEAD | `feature/prism-glass` @ `028c687`（本 HANDOFF 随后单独提交） |
 | 远端 | `origin = https://github.com/super-star12345/recAIteLAB.git`（Public）；`origin/main` = `dfdbd54` |
 | 工作树 | 代码与文档已提交；本次仅更新 `HANDOFF.md` 后推送 |
 | 编译 / 测试 | `.\gradlew.bat assembleDebug` 通过；`testDebugUnitTest` **58/58** 通过（8 个测试类） |
-| 真机 | 已连接 V2463A / Android 17；已装 debug `4.5.1 / 451`（2026-11-11 19:47，数据保留） |
+| 真机 | 已连接 V2463A / Android 17；已装 debug `4.5.1 / 451`（2026-11-11 20:52，数据保留） |
 | 下一阶段 | **T4 已完成**；T5 尚未开始，等产品确认 |
 
 **推送状态**：`feature/prism-glass` 本地领先 `origin/feature/prism-glass`，本次连同本文件一起推送。
@@ -29,7 +29,10 @@
 - Provider / 会话 / 消息 / 知识条目均已持久化；Key 只在 Keystore 加密后落 DataStore。
 - Prism T1–T4 已落地：设计系统切换、页面转场、Standard Glass、悬浮 Dock、模型 SnapSheet、
   弹性按压与 Dock 选中指示器；**ULTRA 仍未实现**，只保留设置占位。
-- 本文件此前快照（2026-11-07）已明显落后，本次（2026-11-11）按实际代码校正。
+- **Haze 采样已改为整页 `NavHost`**：顶栏/输入区/模型 Sheet 在 MainActivity 的
+  `PrismChatOverlay`（NavHost 外层）绘制，因此可以采样整页内容；ChatScreen 只保留消息列表。
+- 顶栏/输入区直接复用 Dock 的 `prismGlassSurface` 默认配置（不加 `hazeBackground`、描边或自定义阴影），
+  这是白框问题的最终解法。
 
 ---
 
@@ -279,13 +282,18 @@ DEEPSEEK_MODEL=deepseek-chat                    # 可省略
   `LocalGlassQuality`、`LocalPrismDockSpace`；Material 3 路径不变。
 - **Standard Glass**：参数集中在 `ui/prism/GlassStyle.kt`；`Modifier.prismGlassSurface`
   负责 `shadow → clip → Haze hazeEffect → 1dp 高光 border`，同一 shape 贯穿。
-  - 模糊 **10dp**；底色 alpha 浅 **0.25** / 深 **0.32**；tint 浅 **0.45** / 深 **0.55**；
-    描边 **1dp**、阴影 **8dp**、noise **0.03**、低版本 fallback **0.86**。
+  - 模糊 **10dp**；tint 浅 **0.45** / 深 **0.55**；描边 **1dp**、阴影 **8dp**、noise **0.03**、
+    低版本 fallback **0.86**；默认 `hazeBackground = Color.Transparent`，不再铺 surface 白底。
   - `OFF` / `ULTRA(未实现)` → 不透明 `surfaceHigh` + 描边 + 轻阴影；`STANDARD` + Android 12+ 才真模糊，
     低版本走 Haze fallback。
+- **整页 Haze 架构**：MainActivity 以整个 `NavHost` 作为唯一 Haze source；对话顶栏/输入区/模型 Sheet
+  在 `PrismChatOverlay`（NavHost 外层）绘制，因此能采样整页内容，而不是只采样消息列表。
+  ChatScreen 只保留消息列表，通过 `LocalPrismChatInputHeight` 获取 overlay 实测的输入区高度。
 - **应用范围**：悬浮 Dock、对话顶部模型栏、对话输入区、模型 SnapSheet 使用玻璃；
   Dock 选中指示器只用 `primaryContainer` tint（`GlassStyle.IndicatorTintAlpha = 0.55`，不建采样层）；
-  消息气泡、列表项、Sheet 行都不单独加模糊。顶栏/输入区保持透明背景链，无白底色块。
+  消息气泡、列表项、Sheet 行都不单独加模糊。
+- **白框教训**：顶栏/输入区必须直接复用 Dock 的 `prismGlassSurface` 默认配置；自定义
+  `hazeBackground` 白色填充、`showBorder` 描边或额外阴影都会在浅色页面形成白框。
 - **Dock**：根 Box `align(BottomCenter)`，左右 20dp、底部 `navigationBars + 8dp`，胶囊
   `RoundedCornerShape(percent = 50)`；`LocalPrismDockSpace = 80.dp + 系统导航栏` 由页面预留。
   单个选中指示器按 Tab 实测 bounds 动画位置/宽度（spring 0.90 / 500），Tab 按压统一走
@@ -386,8 +394,9 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 
 ## 6. Git 状态
 
-- 当前分支 `feature/prism-glass`；功能提交 `71c2aac feat: polish prism interactions and standard glass`。
-  该分支已包含 T1–T4 全部 Prism 改动（`614c830` → `71c2aac` 共 7 个提交）。
+- 当前分支 `feature/prism-glass`；功能提交 `028c687 fix: reuse dock glass for chat bars`，
+  整页 Haze 提交 `d54beac feat: sample the whole prism page with haze`。
+  该分支包含 T1–T4 全部 Prism 改动（`614c830` → `028c687`）。
 - 本 `HANDOFF.md` 更新为独立提交，随后与功能提交一起推送 `origin/feature/prism-glass`。
 - 本地 `main` 仍领先 `origin/main` 1 个提交（`f8d96e0` 对话页 Markdown 标题紧凑化），尚未推送。
 - `origin/main` = `dfdbd54 docs: add README and GPLv3 license`（已含 4.5.1 功能）。
@@ -420,7 +429,9 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
   - T3：Haze 1.7.3 Standard Glass 与低版本降级；
   - T4：设置/历史/知识/对话页 Prism 铺开、悬浮 Dock、SnapSheet 模型选择、弹性按压、
     Dock 弹簧选中指示器、可选 Standard Glass；White-background 清理。
-- 真机已装 T4 版本（4.5.1/451，2026-11-11 19:47），数据保留。
+  - T4 收尾：Haze source 改为整页 `NavHost`；顶栏/输入区/Sheet 移到 `PrismChatOverlay`
+    （NavHost 外层），并直接复用 Dock 的玻璃默认配置，彻底去掉白框。
+- 真机已装 T4 版本（4.5.1/451，2026-11-11 20:52），数据保留。
 
 仍缺 / 下一步：
 
@@ -441,7 +452,7 @@ adb shell am start -W -n com.recaitelab.app/.MainActivity
 - 状态提升：Screen 只接收 state + 回调，不访问 Repository/ViewModel。
 - 网络只走 OkHttp（未引入 Retrofit）；JSON 统一 kotlinx.serialization + `openAiJson`。
 - 调试配置只从 `local.properties` 进 BuildConfig（debug）；业务代码不直接读 `BuildConfig.DEEPSEEK_*`。
-- 当前版本 **4.5.1 / 451**；真机已装 4.5.1（2026-11-11 19:47 覆盖安装，数据保留）。
+- 当前版本 **4.5.1 / 451**；真机已装 4.5.1（2026-11-11 20:52 覆盖安装，数据保留）。
 - 临时截图 / 调试产物统一放 `build\tmp\`；Prism 基线截图清单见 `docs/prism-theme-baseline.md`。
 - 用户要求：**不要每个任务自动安装/打开/截图**；只有明确要求时才装真机。HANDOFF 也只在要求交接时更新。
 - Prism Glass 约束（详见 `docs/prism-theme-baseline.md` 第 5 节）：不引入 Flutter、不删除 Material 3、
