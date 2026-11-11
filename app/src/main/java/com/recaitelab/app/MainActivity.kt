@@ -8,7 +8,6 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.SpringSpec
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -17,32 +16,20 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -57,11 +44,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -101,13 +85,13 @@ import com.recaitelab.app.ui.navigation.SettingsAppearanceRoute
 import com.recaitelab.app.ui.navigation.SettingsModelsRoute
 import com.recaitelab.app.ui.navigation.SettingsPrismRoute
 import com.recaitelab.app.ui.navigation.SettingsRoute
-import com.recaitelab.app.ui.prism.GlassStyle
 import com.recaitelab.app.ui.prism.LocalGlassQuality
+import com.recaitelab.app.ui.prism.PrismDock
+import com.recaitelab.app.ui.prism.PrismDockItem
+import com.recaitelab.app.ui.prism.PrismDockSpec
 import com.recaitelab.app.ui.prism.PrismMotion
 import com.recaitelab.app.ui.prism.PrismPreviewScreen
 import com.recaitelab.app.ui.prism.PrismTheme
-import com.recaitelab.app.ui.prism.prismGlassSurface
-import com.recaitelab.app.ui.prism.prismPressFeedback
 import com.recaitelab.app.ui.settings.AppearanceSettingsScreen
 import com.recaitelab.app.ui.settings.ModelSettingsScreen
 import com.recaitelab.app.ui.settings.SettingsEvent
@@ -120,7 +104,6 @@ import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
-import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -222,15 +205,22 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
                 )
             }
             if (showBottomBar) {
-                PrismBottomBar(
-                    selectedDestination = currentDestination,
+                val selectedIndex = topLevelTabs.indexOfFirst { tab ->
+                    currentDestination
+                        ?.hierarchy
+                        ?.any { destination -> destination.hasRoute(tab.route::class) }
+                        ?: (tab.route == ChatRoute)
+                }.coerceAtLeast(0)
+                PrismDock(
+                    items = topLevelTabs.map { tab -> PrismDockItem(tab.icon, tab.labelRes) },
+                    selectedIndex = selectedIndex,
                     quality = glassQuality,
                     hazeState = hazeState,
-                    onSelect = { route -> navController.navigateToTab(route) },
+                    onSelect = { index -> navController.navigateToTab(topLevelTabs[index].route) },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(horizontal = 20.dp)
-                        .padding(bottom = navBarBottom + 8.dp),
+                        .padding(horizontal = PrismDockSpec.HorizontalMargin)
+                        .padding(bottom = navBarBottom + PrismDockSpec.BottomGap),
                 )
             }
             if (chatActive) {
@@ -454,142 +444,6 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.prismPopExit(): Ex
             animationSpec = prismSpringInt(),
             targetOffsetX = { fullWidth -> fullWidth },
         )
-    }
-}
-
-/** Prism 玻璃底栏：与内容共用 HazeState；选中指示器只做 tint，不单独采样背景。 */
-@Composable
-private fun PrismBottomBar(
-    selectedDestination: NavDestination?,
-    quality: GlassQuality,
-    hazeState: HazeState,
-    onSelect: (Any) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = PrismTheme.colors
-    val motion = PrismTheme.motion
-    val density = LocalDensity.current
-    var dockWidthPx by remember { mutableStateOf(0f) }
-    var dockHeightPx by remember { mutableStateOf(0f) }
-    val selectedIndex = topLevelTabs.indexOfFirst { tab ->
-        selectedDestination
-            ?.hierarchy
-            ?.any { destination -> destination.hasRoute(tab.route::class) }
-            ?: (tab.route == ChatRoute)
-    }.coerceAtLeast(0)
-
-    // 槽位按 Dock 实际宽度等分，左右各扣除 Row 的 8dp 内边距；
-    // 不再依赖 Tab 内容 bounds，保证指示器始终落在槽位正中。
-    val dockPaddingPx = with(density) { 8.dp.toPx() }
-    val slotWidthPx = if (dockWidthPx > 0f) {
-        (dockWidthPx - dockPaddingPx * 2f) / topLevelTabs.size
-    } else {
-        0f
-    }
-    val indicatorTargetWidth = slotWidthPx
-    val indicatorTargetLeft = dockPaddingPx + selectedIndex * slotWidthPx
-
-    val indicatorLeft by animateFloatAsState(
-        targetValue = indicatorTargetLeft,
-        animationSpec = spring(
-            dampingRatio = motion.dockIndicatorDamping,
-            stiffness = motion.dockIndicatorStiffness,
-        ),
-        label = "dockIndicatorLeft",
-    )
-    val indicatorWidth by animateFloatAsState(
-        targetValue = indicatorTargetWidth,
-        animationSpec = spring(
-            dampingRatio = motion.dockIndicatorDamping,
-            stiffness = motion.dockIndicatorStiffness,
-        ),
-        label = "dockIndicatorWidth",
-    )
-    val indicatorColor = if (quality == GlassQuality.STANDARD) {
-        colors.primaryContainer.copy(alpha = GlassStyle.IndicatorTintAlpha)
-    } else {
-        colors.primaryContainer
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .onSizeChanged {
-                dockWidthPx = it.width.toFloat()
-                dockHeightPx = it.height.toFloat()
-            }
-            .prismGlassSurface(
-                quality = quality,
-                hazeState = hazeState,
-                shape = RoundedCornerShape(percent = 50),
-            ),
-    ) {
-        if (indicatorWidth > 0f && dockHeightPx > 0f) {
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            x = indicatorLeft.roundToInt(),
-                            y = 0,
-                        )
-                    }
-                    .width(with(density) { indicatorWidth.toDp() })
-                    // 全高但仍使用底栏同语言胶囊圆角，避免整块方框。
-                    .height(with(density) { dockHeightPx.toDp() })
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(indicatorColor),
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            topLevelTabs.forEach { tab ->
-                val selected = selectedDestination
-                    ?.hierarchy
-                    ?.any { destination -> destination.hasRoute(tab.route::class) }
-                    ?: (tab.route == ChatRoute)
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .prismPressFeedback(
-                            emphasized = true,
-                            onClick = { if (!selected) onSelect(tab.route) },
-                        ),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier.height(32.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                                tint = if (selected) colors.primary else colors.onSurfaceVariant,
-                            )
-                        }
-                        Text(
-                            text = stringResource(tab.labelRes),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (selected) colors.onSurface else colors.onSurfaceVariant,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
