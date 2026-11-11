@@ -24,9 +24,13 @@ data class PrismMotion(
     val pressAlpha: Float = 0.96f,
     val pressSpringDamping: Float = 0.90f,
     val pressSpringStiffness: Float = 650f,
-    /** Dock 选中指示器：位置/宽度弹簧；快速切换时由同一 Animatable 改道。 */
-    val dockIndicatorDamping: Float = 0.90f,
-    val dockIndicatorStiffness: Float = 500f,
+    /** Dock Tab 专用按压：更深缩小 + 更明显的一次回弹过冲。 */
+    val dockPressScale: Float = 0.96f,
+    val dockPressSpringDamping: Float = 0.35f,
+    val dockPressSpringStiffness: Float = 420f,
+    /** Dock 选中指示器：位置/宽度弹簧；低阻尼产生可见但克制的过冲。 */
+    val dockIndicatorDamping: Float = 0.72f,
+    val dockIndicatorStiffness: Float = 450f,
 )
 
 val LocalPrismMotion = staticCompositionLocalOf { PrismMotion() }

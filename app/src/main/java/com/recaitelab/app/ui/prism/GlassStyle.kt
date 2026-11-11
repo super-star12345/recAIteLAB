@@ -27,7 +27,7 @@ object GlassStyle {
     const val FallbackAlpha = 0.86f
 
     /** Dock 选中指示器只做轻量 tint，不单独建立背景采样层。 */
-    const val IndicatorTintAlpha = 0.55f
+    const val IndicatorTintAlpha = 0.72f
 
     const val NoiseFactor = 0.03f
 }

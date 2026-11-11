@@ -20,11 +20,13 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -56,11 +58,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.boundsInParent
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
@@ -469,27 +469,25 @@ private fun PrismBottomBar(
     val colors = PrismTheme.colors
     val motion = PrismTheme.motion
     val density = LocalDensity.current
-    var tabBounds by remember {
-        mutableStateOf<List<Rect?>>(List(topLevelTabs.size) { null })
-    }
+    var dockWidthPx by remember { mutableStateOf(0f) }
+    var dockHeightPx by remember { mutableStateOf(0f) }
     val selectedIndex = topLevelTabs.indexOfFirst { tab ->
         selectedDestination
             ?.hierarchy
             ?.any { destination -> destination.hasRoute(tab.route::class) }
             ?: (tab.route == ChatRoute)
     }.coerceAtLeast(0)
-    val selectedBounds = tabBounds.getOrNull(selectedIndex)
 
-    val iconAreaHeightPx = with(density) { 32.dp.toPx() }
-    val indicatorMaxWidthPx = with(density) { 64.dp.toPx() }
-    val indicatorTargetWidth = selectedBounds?.let { bounds ->
-        minOf(bounds.width - with(density) { 8.dp.toPx() }, indicatorMaxWidthPx)
-    } ?: 0f
-    // boundsInParent 已包含 Row 的 8dp 内边距，这里不再重复加偏移。
-    val indicatorTargetLeft = selectedBounds?.let { bounds ->
-        bounds.left + (bounds.width - indicatorTargetWidth) / 2f
-    } ?: 0f
-    val indicatorTargetTop = selectedBounds?.top ?: 0f
+    // 槽位按 Dock 实际宽度等分，左右各扣除 Row 的 8dp 内边距；
+    // 不再依赖 Tab 内容 bounds，保证指示器始终落在槽位正中。
+    val dockPaddingPx = with(density) { 8.dp.toPx() }
+    val slotWidthPx = if (dockWidthPx > 0f) {
+        (dockWidthPx - dockPaddingPx * 2f) / topLevelTabs.size
+    } else {
+        0f
+    }
+    val indicatorTargetWidth = slotWidthPx
+    val indicatorTargetLeft = dockPaddingPx + selectedIndex * slotWidthPx
 
     val indicatorLeft by animateFloatAsState(
         targetValue = indicatorTargetLeft,
@@ -516,24 +514,29 @@ private fun PrismBottomBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .onSizeChanged {
+                dockWidthPx = it.width.toFloat()
+                dockHeightPx = it.height.toFloat()
+            }
             .prismGlassSurface(
                 quality = quality,
                 hazeState = hazeState,
                 shape = RoundedCornerShape(percent = 50),
             ),
     ) {
-        if (selectedBounds != null && indicatorWidth > 0f) {
+        if (indicatorWidth > 0f && dockHeightPx > 0f) {
             Box(
                 modifier = Modifier
                     .offset {
                         IntOffset(
                             x = indicatorLeft.roundToInt(),
-                            y = indicatorTargetTop.roundToInt(),
+                            y = 0,
                         )
                     }
                     .width(with(density) { indicatorWidth.toDp() })
-                    .height(with(density) { iconAreaHeightPx.toDp() })
-                    .clip(PrismTheme.shapes.pill)
+                    // 全高但仍使用底栏同语言胶囊圆角，避免整块方框。
+                    .height(with(density) { dockHeightPx.toDp() })
+                    .clip(RoundedCornerShape(percent = 50))
                     .background(indicatorColor),
             )
         }
@@ -541,11 +544,12 @@ private fun PrismBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(IntrinsicSize.Min)
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            topLevelTabs.forEachIndexed { index, tab ->
+            topLevelTabs.forEach { tab ->
                 val selected = selectedDestination
                     ?.hierarchy
                     ?.any { destination -> destination.hasRoute(tab.route::class) }
@@ -553,13 +557,11 @@ private fun PrismBottomBar(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .onGloballyPositioned { coordinates ->
-                            val bounds = coordinates.boundsInParent()
-                            if (tabBounds.getOrNull(index) != bounds) {
-                                tabBounds = tabBounds.toMutableList().also { it[index] = bounds }
-                            }
-                        }
-                        .prismPressFeedback(onClick = { if (!selected) onSelect(tab.route) }),
+                        .fillMaxHeight()
+                        .prismPressFeedback(
+                            emphasized = true,
+                            onClick = { if (!selected) onSelect(tab.route) },
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                 ) {
