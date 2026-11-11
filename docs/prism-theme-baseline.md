@@ -282,3 +282,13 @@ API Key 密文在独立 DataStore `secure_keys`（`data/local/security/ApiKeySto
 原建议：问题 1、2 与 Prism 的「玻璃底栏 / 状态栏沉浸」直接相关，进入 T2/T3 前需先决定是修复还是
 在 Prism 模式内单独处理；问题 3、4 可作为 T4 铺开时的顺带视觉修复项（均已在 T0 后修复）。
 
+---
+
+## 8. 宽屏 / Sidebar 边界（T4 记录）
+
+- 玻璃组件（`prismGlassSurface`、`PrismSnapSheet`、`PrismNavigationDock`）不绑定 Dock：
+  入参是任意 `Shape` + `HazeState`，可在未来宽屏 Sidebar 中复用。
+- 当前项目没有桌面或侧栏布局；本阶段不新增桌面平台、不做响应式侧栏，也不写死 Dock 专用参数。
+- **桌面侧栏模糊（Sidebar glass）留待宽屏布局阶段实现**：届时需要为侧栏单独建立 Haze
+  source/采样区域与吸附锚点，而不是复用 Dock 的宽度与位置假设。
+

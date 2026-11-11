@@ -2,7 +2,6 @@ package com.recaitelab.app.ui.chat
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -193,8 +192,6 @@ fun PrismChatInputBar(
         Box(
             modifier = Modifier
                 .weight(1f)
-                .background(colors.surface.copy(alpha = 0.82f), shapes.listRow)
-                .border(BorderStroke(1.dp, colors.outlineVariant), shapes.listRow)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             if (inputText.isEmpty()) {

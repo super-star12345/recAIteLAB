@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -18,15 +19,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -44,10 +50,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -86,6 +100,7 @@ import com.recaitelab.app.ui.navigation.SettingsAppearanceRoute
 import com.recaitelab.app.ui.navigation.SettingsModelsRoute
 import com.recaitelab.app.ui.navigation.SettingsPrismRoute
 import com.recaitelab.app.ui.navigation.SettingsRoute
+import com.recaitelab.app.ui.prism.GlassStyle
 import com.recaitelab.app.ui.prism.LocalGlassQuality
 import com.recaitelab.app.ui.prism.PrismMotion
 import com.recaitelab.app.ui.prism.PrismPreviewScreen
@@ -103,6 +118,7 @@ import com.recaitelab.app.ui.theme.RecAIteLABTheme
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -413,7 +429,7 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.prismPopExit(): Ex
     }
 }
 
-/** Prism 玻璃底栏：与内容共用 HazeState，只有这一层使用背景模糊。 */
+/** Prism 玻璃底栏：与内容共用 HazeState；选中指示器只做 tint，不单独采样背景。 */
 @Composable
 private fun PrismBottomBar(
     selectedDestination: NavDestination?,
@@ -423,55 +439,124 @@ private fun PrismBottomBar(
     modifier: Modifier = Modifier,
 ) {
     val colors = PrismTheme.colors
-    Row(
+    val motion = PrismTheme.motion
+    val density = LocalDensity.current
+    var tabBounds by remember {
+        mutableStateOf<List<Rect?>>(List(topLevelTabs.size) { null })
+    }
+    val selectedIndex = topLevelTabs.indexOfFirst { tab ->
+        selectedDestination
+            ?.hierarchy
+            ?.any { destination -> destination.hasRoute(tab.route::class) }
+            ?: (tab.route == ChatRoute)
+    }.coerceAtLeast(0)
+    val selectedBounds = tabBounds.getOrNull(selectedIndex)
+
+    val iconAreaHeightPx = with(density) { 32.dp.toPx() }
+    val indicatorMaxWidthPx = with(density) { 64.dp.toPx() }
+    val indicatorTargetWidth = selectedBounds?.let { bounds ->
+        minOf(bounds.width - with(density) { 8.dp.toPx() }, indicatorMaxWidthPx)
+    } ?: 0f
+    // boundsInParent 已包含 Row 的 8dp 内边距，这里不再重复加偏移。
+    val indicatorTargetLeft = selectedBounds?.let { bounds ->
+        bounds.left + (bounds.width - indicatorTargetWidth) / 2f
+    } ?: 0f
+    val indicatorTargetTop = selectedBounds?.top ?: 0f
+
+    val indicatorLeft by animateFloatAsState(
+        targetValue = indicatorTargetLeft,
+        animationSpec = spring(
+            dampingRatio = motion.dockIndicatorDamping,
+            stiffness = motion.dockIndicatorStiffness,
+        ),
+        label = "dockIndicatorLeft",
+    )
+    val indicatorWidth by animateFloatAsState(
+        targetValue = indicatorTargetWidth,
+        animationSpec = spring(
+            dampingRatio = motion.dockIndicatorDamping,
+            stiffness = motion.dockIndicatorStiffness,
+        ),
+        label = "dockIndicatorWidth",
+    )
+    val indicatorColor = if (quality == GlassQuality.STANDARD) {
+        colors.primaryContainer.copy(alpha = GlassStyle.IndicatorTintAlpha)
+    } else {
+        colors.primaryContainer
+    }
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .prismGlassSurface(
                 quality = quality,
                 hazeState = hazeState,
-                shape = PrismTheme.shapes.large,
-            )
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
+                shape = RoundedCornerShape(percent = 50),
+            ),
     ) {
-        topLevelTabs.forEach { tab ->
-            val selected = selectedDestination
-                ?.hierarchy
-                ?.any { destination -> destination.hasRoute(tab.route::class) }
-                ?: (tab.route == ChatRoute)
-            Row(
+        if (selectedBounds != null && indicatorWidth > 0f) {
+            Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .prismPressFeedback(onClick = { if (!selected) onSelect(tab.route) }),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                androidx.compose.foundation.layout.Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Surface(
-                        shape = PrismTheme.shapes.pill,
-                        color = if (selected) colors.primaryContainer else Color.Transparent,
-                        contentColor = if (selected) {
-                            colors.onPrimaryContainer
-                        } else {
-                            colors.onSurfaceVariant
-                        },
-                    ) {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = null,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                    .offset {
+                        IntOffset(
+                            x = indicatorLeft.roundToInt(),
+                            y = indicatorTargetTop.roundToInt(),
                         )
                     }
-                    Text(
-                        text = stringResource(tab.labelRes),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (selected) colors.onSurface else colors.onSurfaceVariant,
-                        maxLines = 1,
-                    )
+                    .width(with(density) { indicatorWidth.toDp() })
+                    .height(with(density) { iconAreaHeightPx.toDp() })
+                    .clip(PrismTheme.shapes.pill)
+                    .background(indicatorColor),
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            topLevelTabs.forEachIndexed { index, tab ->
+                val selected = selectedDestination
+                    ?.hierarchy
+                    ?.any { destination -> destination.hasRoute(tab.route::class) }
+                    ?: (tab.route == ChatRoute)
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .onGloballyPositioned { coordinates ->
+                            val bounds = coordinates.boundsInParent()
+                            if (tabBounds.getOrNull(index) != bounds) {
+                                tabBounds = tabBounds.toMutableList().also { it[index] = bounds }
+                            }
+                        }
+                        .prismPressFeedback(onClick = { if (!selected) onSelect(tab.route) }),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier.height(32.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = if (selected) colors.primary else colors.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = stringResource(tab.labelRes),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (selected) colors.onSurface else colors.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }

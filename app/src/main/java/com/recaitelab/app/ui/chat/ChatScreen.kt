@@ -80,6 +80,7 @@ import com.recaitelab.app.ui.prism.LocalGlassQuality
 import com.recaitelab.app.ui.prism.PrismButton
 import com.recaitelab.app.ui.prism.PrismButtonStyle
 import com.recaitelab.app.ui.prism.PrismEmptyState
+import com.recaitelab.app.ui.prism.PrismSnapSheet
 import com.recaitelab.app.ui.prism.PrismTheme
 import com.recaitelab.app.ui.prism.prismGlassSurface
 import com.recaitelab.app.ui.theme.LocalAppDesignSystem
@@ -275,14 +276,23 @@ fun ChatScreen(
                         },
                 )
 
-                if (showModelPicker) {
-                    PrismPickerOverlay(
+                PrismSnapSheet(
+                    visible = showModelPicker,
+                    onDismiss = { showModelPicker = false },
+                    title = stringResource(R.string.chat_model_picker_title),
+                    quality = glassQuality,
+                    hazeState = chatHazeState,
+                    contentHeightHint = modelPickerHeightHint(state.providers),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = dockSpace + 8.dp),
+                ) {
+                    ModelPickerSheet(
                         providers = state.providers,
                         activeProviderId = state.activeProviderId,
                         activeModel = state.activeModel,
-                        quality = glassQuality,
-                        hazeState = chatHazeState,
-                        dockSpace = dockSpace,
+                        isPrism = true,
+                        showTitle = false,
                         onSelect = { providerId, model ->
                             onModelSelected(providerId, model)
                             showModelPicker = false
@@ -291,7 +301,7 @@ fun ChatScreen(
                             showModelPicker = false
                             onOpenSettings()
                         },
-                        onDismiss = { showModelPicker = false },
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
             }
@@ -362,68 +372,6 @@ fun ChatScreen(
                     onOpenSettings()
                 },
             )
-        }
-    }
-}
-
-/** Prism 模型选择：同窗口玻璃面板，可采样对话页内容；点击遮罩/返回关闭。 */
-@Composable
-private fun PrismPickerOverlay(
-    providers: List<ProviderModels>,
-    activeProviderId: UUID?,
-    activeModel: String?,
-    quality: GlassQuality,
-    hazeState: HazeState,
-    dockSpace: Dp,
-    onSelect: (UUID, String) -> Unit,
-    onGoSettings: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    BackHandler(onBack = onDismiss)
-    val colors = PrismTheme.colors
-    val scrimInteraction = remember { MutableInteractionSource() }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.32f))
-                .clickable(
-                    interactionSource = scrimInteraction,
-                    indication = null,
-                    onClick = onDismiss,
-                ),
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 12.dp)
-                .padding(bottom = dockSpace + 8.dp)
-                .fillMaxWidth()
-                .fillMaxHeight(0.70f)
-                .prismGlassSurface(
-                    quality = quality,
-                    hazeState = hazeState,
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                ),
-        ) {
-            Column(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .size(width = 40.dp, height = 4.dp)
-                        .background(colors.outlineVariant, PrismTheme.shapes.pill),
-                )
-                ModelPickerSheet(
-                    providers = providers,
-                    activeProviderId = activeProviderId,
-                    activeModel = activeModel,
-                    isPrism = true,
-                    onSelect = onSelect,
-                    onGoSettings = onGoSettings,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
         }
     }
 }
@@ -613,6 +561,7 @@ private fun ModelPickerSheet(
     onSelect: (UUID, String) -> Unit,
     onGoSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    showTitle: Boolean = true,
 ) {
     val hasModels = providers.any { it.models.isNotEmpty() }
     val titleColor = if (isPrism) {
@@ -637,12 +586,14 @@ private fun ModelPickerSheet(
             .padding(horizontal = 16.dp)
             .padding(bottom = 24.dp),
     ) {
-        Text(
-            text = stringResource(R.string.chat_model_picker_title),
-            style = MaterialTheme.typography.titleMedium,
-            color = titleColor,
-            modifier = Modifier.padding(vertical = 12.dp),
-        )
+        if (showTitle) {
+            Text(
+                text = stringResource(R.string.chat_model_picker_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = titleColor,
+                modifier = Modifier.padding(vertical = 12.dp),
+            )
+        }
         if (!hasModels) {
             EmptyModelPicker(isPrism = isPrism, onGoSettings = onGoSettings)
         } else {
@@ -687,9 +638,17 @@ private fun ModelPickerSheet(
     }
 }
 
+/** 估算模型面板内容高度，让模型较少时 Sheet 自然收缩而不是留大块空白。 */
+private fun modelPickerHeightHint(providers: List<ProviderModels>): Dp {
+    if (providers.isEmpty()) return 180.dp
+    val rows = providers.sumOf { it.models.size.coerceAtLeast(1) }
+    val headers = providers.size
+    val estimated = rows * 48 + headers * 30 + 32
+    return if (estimated < 160) 160.dp else estimated.dp
+}
+
 @Composable
-private fun EmptyModelPicker(
-    isPrism: Boolean,
+private fun EmptyModelPicker(    isPrism: Boolean,
     onGoSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {

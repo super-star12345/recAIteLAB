@@ -19,11 +19,14 @@ data class PrismMotion(
     /** 前页联动后退比例（屏宽 30%）与黑色暗化透明度（10%）。 */
     val pageRecedeFraction: Float = 0.30f,
     val pageScrimAlpha: Float = 0.10f,
-    /** 统一按压反馈：轻微缩放 + 透明度变化，弹簧过渡。 */
-    val pressScale: Float = 0.97f,
-    val pressAlpha: Float = 0.94f,
-    val pressSpringDamping: Float = 0.70f,
-    val pressSpringStiffness: Float = 700f,
+    /** 统一按压反馈：轻微缩放 + 透明度变化，弹簧过渡；阻尼略高，避免果冻感。 */
+    val pressScale: Float = 0.975f,
+    val pressAlpha: Float = 0.96f,
+    val pressSpringDamping: Float = 0.90f,
+    val pressSpringStiffness: Float = 650f,
+    /** Dock 选中指示器：位置/宽度弹簧；快速切换时由同一 Animatable 改道。 */
+    val dockIndicatorDamping: Float = 0.90f,
+    val dockIndicatorStiffness: Float = 500f,
 )
 
 val LocalPrismMotion = staticCompositionLocalOf { PrismMotion() }
