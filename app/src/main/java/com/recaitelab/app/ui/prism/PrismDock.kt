@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -81,8 +82,8 @@ data class PrismDockItem(
  * 本组件只补宽度与固定高度。
  *
  * 层次：64dp 玻璃胶囊（底部对齐）→ 隐藏的 Tab 采样层 → 内容层 → 指示器层（zIndex 2）。
- * 指示器的布局始终是 56dp，P4 起 morph 只通过 graphicsLayer 的 scaleX/scaleY 完成，
- * 因此不会再向上凸出 16dp，而是以 64dp 玻璃中心为轴上下对称放大。
+ * 指示器的布局始终是 56dp，morph 只通过 graphicsLayer 的等比缩放（1.18×）完成，
+ * 保持常态胶囊的宽高比，并以 64dp 玻璃中心为轴放大。
  *
  * P4 的 morph 跟 [dockPressed] 走：按下即可见，不需要拖动；STANDARD/OFF 永远不 morph。
  * 指示器采样三段合成的背景：页面（NavHost）、玻璃胶囊、隐藏的 Tab 行，
@@ -135,11 +136,12 @@ fun PrismDock(
     // 槽位按 Dock 实际宽度等分，左右各扣除 Row 的内边距；
     // 不再依赖 Tab 内容 bounds，保证指示器始终落在槽位正中。
     val dockPaddingPx = with(density) { PrismDockSpec.InnerPadding.toPx() }
-    // 指示器布局高度固定 56dp，顶边 = (64 - 56) / 2 = 4dp。
-    val indicatorTopPx = with(density) { PrismDockSpec.IndicatorInset.toPx() }
     // lens 的折射参数先在这里转成 px，避免在 BackdropEffectScope 里依赖密度。
     val refractionHeightPx = with(density) { 10.dp.toPx() }
     val refractionAmountPx = with(density) { 14.dp.toPx() }
+    // 采样范围整体向左上偏移，让 lens 里的 Tab 内容跟着挪位。
+    val sampleOffsetXPx = with(density) { (-6).dp.toPx() } * morphProgress
+    val sampleOffsetYPx = with(density) { (-6).dp.toPx() } * morphProgress
 
     val slotWidthPx = slotWidth(dockWidthPx, items.size, dockPaddingPx)
     val baseLeft = indicatorLeftPx(dockWidthPx, items.size, dockPaddingPx, selectedIndex, isRtl)
@@ -184,10 +186,8 @@ fun PrismDock(
     val topHighlightAlpha = if (colors.isDark) 0.12f else 0.20f
     val midHighlightAlpha = if (colors.isDark) 0.03f else 0.04f
 
-    // 56dp 布局 → 76dp 视觉高度：scaleY 只放大绘制，不改变测量。
-    val morphScaleX = 1f + (PrismDockSpec.MorphWidthScale - 1f) * morphProgress
-    val morphScaleY = 1f +
-        ((PrismDockSpec.MorphHeight / PrismDockSpec.IndicatorHeight) - 1f) * morphProgress
+    // 保持常态 78:56 的胶囊比例：X/Y 用同一个 1.18× 倍率等比放大，不单独拉高。
+    val morphScale = 1f + (PrismDockSpec.MorphScale - 1f) * morphProgress
 
     val indicatorShape = RoundedCornerShape(percent = 50)
     val indicatorWidthDp = with(density) { animatedSlotWidth.toDp() }
@@ -387,15 +387,18 @@ fun PrismDock(
             }
         }
 
-        // 3) 指示器层：布局始终 56dp，morph 只走 graphicsLayer 的中心缩放。
+        // 3) 指示器层：布局始终 56dp，morph 只走 graphicsLayer 的等比中心缩放。
+        // 64dp 胶囊中心 = 32dp；56dp 指示器顶边 = (64-56)/2 = 4dp；
+        // CenterStart 让中心恒为 32dp，1.18× 放大后约 92×66dp，上下各溢出约 1dp。
         if (animatedSlotWidth > 0f && dockWidthPx > 0f) {
             if (showLens) {
                 Box(
                     modifier = Modifier
+                        .align(Alignment.CenterStart)
                         .offset {
                             IntOffset(
                                 x = indicatorLeft.roundToInt(),
-                                y = indicatorTopPx.roundToInt(),
+                                y = 0,
                             )
                         }
                         .width(indicatorWidthDp)
@@ -404,11 +407,12 @@ fun PrismDock(
                         .zIndex(2f)
                         .graphicsLayer {
                             transformOrigin = TransformOrigin.Center
-                            // 按压时整体上抬 12dp，morph 回落后归位。
-                            translationY = -12.dp.toPx() * morphProgress
-                            scaleX = morphScaleX
-                            scaleY = morphScaleY
+                            scaleX = morphScale
+                            scaleY = morphScale
                         }
+                        // 不透明底：盖住下面的真实 Tab，lens 只显示自己采到的副本，避免重影。
+                        .clip(indicatorShape)
+                        .background(colors.background)
                         .drawBackdrop(
                             backdrop = combinedBackdrop,
                             shape = { indicatorShape },
@@ -433,6 +437,15 @@ fun PrismDock(
                                 drawRect(morphTint)
                                 drawRect(Color.Black.copy(alpha = 0.03f * morphProgress))
                             },
+                            // 采样内容整体向左上平移；底色与边框不跟着动。
+                            onDrawBackdrop = { drawBackdropContent ->
+                                translate(
+                                    left = sampleOffsetXPx,
+                                    top = sampleOffsetYPx,
+                                ) {
+                                    drawBackdropContent()
+                                }
+                            },
                             onDrawFront = {
                                 drawRoundRect(
                                     color = Color.White.copy(alpha = borderAlpha),
@@ -445,10 +458,11 @@ fun PrismDock(
             } else {
                 Box(
                     modifier = Modifier
+                        .align(Alignment.CenterStart)
                         .offset {
                             IntOffset(
                                 x = indicatorLeft.roundToInt(),
-                                y = indicatorTopPx.roundToInt(),
+                                y = 0,
                             )
                         }
                         .width(indicatorWidthDp)
@@ -457,10 +471,8 @@ fun PrismDock(
                         .zIndex(2f)
                         .graphicsLayer {
                             transformOrigin = TransformOrigin.Center
-                            // 按压时整体上抬 12dp，morph 回落后归位。
-                            translationY = -12.dp.toPx() * morphProgress
-                            scaleX = morphScaleX
-                            scaleY = morphScaleY
+                            scaleX = morphScale
+                            scaleY = morphScale
                         }
                         .clip(indicatorShape)
                         .background(morphTint)

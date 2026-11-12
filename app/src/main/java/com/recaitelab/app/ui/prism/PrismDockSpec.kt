@@ -34,8 +34,8 @@ object PrismDockSpec {
     /** morph 时指示器的视觉目标高度：只放大绘制，布局仍为 [IndicatorHeight]。 */
     val MorphHeight = 76.dp
 
-    /** morph 时指示器最大宽度相对槽宽的倍数（graphicsLayer scaleX）。 */
-    const val MorphWidthScale = 1.04f
+    /** 按压时指示器的等比放大倍率（X/Y 同倍率，保持槽宽:56dp 的比例，略超出 Dock）。 */
+    const val MorphScale = 1.18f
 
     /** 图标边长；外层另有 32dp 的图标盒以稳定文字基线。 */
     val IconSize = 24.dp
