@@ -35,9 +35,9 @@ data class PrismMotion(
     /** Dock 选中指示器：位置/宽度弹簧；低阻尼产生可见但克制的过冲。 */
     val dockIndicatorDamping: Float = 0.72f,
     val dockIndicatorStiffness: Float = 450f,
-    /** Dock 拖动 morph：指示器高度/宽度的跟随弹簧，略低阻尼但比 indicator 更稳。 */
-    val dockMorphDamping: Float = 0.78f,
-    val dockMorphStiffness: Float = 420f,
+    /** Dock 按下 morph：高刚度、略低阻尼，让按下即变透明并快速稳定。 */
+    val dockMorphDamping: Float = 0.85f,
+    val dockMorphStiffness: Float = 800f,
 )
 
 val LocalPrismMotion = staticCompositionLocalOf { PrismMotion() }

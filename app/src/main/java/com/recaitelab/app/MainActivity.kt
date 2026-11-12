@@ -162,8 +162,8 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
         val glassQuality = LocalGlassQuality.current
         // ULTRA 也需要真实背景模糊；只有 OFF 关闭模糊、走不透明降级。
         val hazeState = rememberHazeState(blurEnabled = glassQuality != GlassQuality.OFF)
-        // 只给 Dock 指示器的 lens 提供背景采样；Haze 仍负责玻璃条的模糊。
-        val dockBackdrop = rememberLayerBackdrop()
+        // 指示器合成背景的第一层：整页内容。Dock 内部再叠加玻璃与隐藏 Tab 层。
+        val pageBackdrop = rememberLayerBackdrop()
         val navBarBottom = WindowInsets.navigationBars
             .asPaddingValues()
             .calculateBottomPadding()
@@ -196,7 +196,7 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
                     modifier = Modifier
                         .fillMaxSize()
                         .hazeSource(hazeState)
-                        .layerBackdrop(dockBackdrop),
+                        .layerBackdrop(pageBackdrop),
                 enterTransition = { prismEnter() },
                 exitTransition = { prismExit() },
                 popEnterTransition = { prismPopEnter() },
@@ -222,7 +222,7 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
                     selectedIndex = selectedIndex,
                     quality = glassQuality,
                     hazeState = hazeState,
-                    backdrop = dockBackdrop,
+                    pageBackdrop = pageBackdrop,
                     onSelect = { index -> navController.navigateToTab(topLevelTabs[index].route) },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)

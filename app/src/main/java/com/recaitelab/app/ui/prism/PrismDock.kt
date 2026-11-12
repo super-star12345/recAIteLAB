@@ -32,11 +32,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -48,12 +50,19 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.emptyBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.shadow.InnerShadow
 import com.recaitelab.app.domain.model.GlassQuality
 import dev.chrisbanes.haze.HazeState
 import kotlin.math.roundToInt
@@ -65,23 +74,19 @@ data class PrismDockItem(
 )
 
 /**
- * Prism 玻璃底栏：与内容共用 [HazeState]；选中指示器只做 tint，不单独采样背景。
+ * Prism 玻璃底栏：与内容共用 [HazeState]；选中指示器默认只做 tint。
  *
  * 纯展示组件——不读 NavController / ViewModel，选中态与点击都由调用方决定。
  * 调用方负责外层的对齐与外边距（`align(BottomCenter)` + 左右 20dp + 底部导航栏间距），
  * 本组件只补宽度与固定高度。
  *
- * 层次自 P3.5 起拆成三层：64dp 玻璃胶囊（底部对齐）、独立指示器层（在玻璃 clip 外）、
- * 64dp 内容层。根容器 80dp 只为拖动 morph 的 76dp 指示器留 headroom，玻璃视觉位置不变。
+ * 层次：64dp 玻璃胶囊（底部对齐）→ 隐藏的 Tab 采样层 → 指示器层（在玻璃 clip 外）→ 内容层。
+ * 指示器的布局始终是 56dp，P4 起 morph 只通过 graphicsLayer 的 scaleX/scaleY 完成，
+ * 因此不会再向上凸出 16dp，而是以 64dp 玻璃中心为轴上下对称放大。
  *
- * P2 起 ULTRA 走更薄的模糊与更低的 tint，并额外叠加顶部高光与指示器高光边；
- * STANDARD/OFF 的材质仍由 [prismGlassSurface] 的默认参数渲染。
- *
- * P3 起支持：整条 Dock 按压缩放、选中图标放大、横向拖动切换 Tab（跨槽触发一次触觉）。
- *
- * P3.5 起仅 ULTRA 在拖动时把指示器从 56dp morph 到 76dp、宽度最大 1.04×、底色渐隐，
- * 并在 API 33+ 且提供 [backdrop] 时用 Backdrop 的 RuntimeShader lens 做边缘折射/色散；
- * 松手后弹回原位，普通点击仍只有 P3 的按压与图标缩放。
+ * P4 的 morph 跟 [dockPressed] 走：按下即可见，不需要拖动；STANDARD/OFF 永远不 morph。
+ * 指示器采样三段合成的背景：页面（NavHost）、玻璃胶囊、隐藏的 Tab 行，
+ * 因此透明后仍能看到 Tab 图标/文字，并叠加很轻的 blur 与 API 33+ 的 lens 折射。
  */
 @Composable
 fun PrismDock(
@@ -91,7 +96,7 @@ fun PrismDock(
     hazeState: HazeState,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    backdrop: LayerBackdrop? = null,
+    pageBackdrop: LayerBackdrop? = null,
 ) {
     val colors = PrismTheme.colors
     val motion = PrismTheme.motion
@@ -117,9 +122,9 @@ fun PrismDock(
         label = "dockContainerScale",
     )
 
-    // 拖动 morph 只跟 dragging 走；dockPressed 的 1.04 缩放仍由上面的弹簧独立负责。
+    // P4：morph 跟按下走，按下即变透明；拖动只负责位移与点击保护。
     val morphProgress by animateFloatAsState(
-        targetValue = if (isUltra && dragging) 1f else 0f,
+        targetValue = if (isUltra && dockPressed) 1f else 0f,
         animationSpec = spring(
             dampingRatio = motion.dockMorphDamping,
             stiffness = motion.dockMorphStiffness,
@@ -130,10 +135,8 @@ fun PrismDock(
     // 槽位按 Dock 实际宽度等分，左右各扣除 Row 的内边距；
     // 不再依赖 Tab 内容 bounds，保证指示器始终落在槽位正中。
     val dockPaddingPx = with(density) { PrismDockSpec.InnerPadding.toPx() }
-    val layoutHeightPx = with(density) { PrismDockSpec.LayoutHeight.toPx() }
-    val indicatorInsetPx = with(density) { PrismDockSpec.IndicatorInset.toPx() }
-    val baseIndicatorHeightPx = with(density) { PrismDockSpec.IndicatorHeight.toPx() }
-    val morphHeightPx = with(density) { PrismDockSpec.MorphHeight.toPx() }
+    // 指示器布局高度固定 56dp，顶边 = (64 - 56) / 2 = 4dp。
+    val indicatorTopPx = with(density) { PrismDockSpec.IndicatorInset.toPx() }
     // lens 的折射参数先在这里转成 px，避免在 BackdropEffectScope 里依赖密度。
     val refractionHeightPx = with(density) { 10.dp.toPx() }
     val refractionAmountPx = with(density) { 14.dp.toPx() }
@@ -151,39 +154,9 @@ fun PrismDock(
         label = "dockIndicatorWidth",
     )
 
-    val currentIndicatorHeight = morphIndicatorHeight(
-        baseHeightPx = baseIndicatorHeightPx,
-        morphHeightPx = morphHeightPx,
-        progress = morphProgress,
-    )
-    val currentIndicatorWidth = morphIndicatorWidth(
-        slotWidthPx = animatedSlotWidth,
-        scale = PrismDockSpec.MorphWidthScale,
-        progress = morphProgress,
-    )
-    val indicatorTop = morphIndicatorTop(
-        layoutHeightPx = layoutHeightPx,
-        insetPx = indicatorInsetPx,
-        indicatorHeightPx = currentIndicatorHeight,
-    )
-    // 只有 ULTRA 拖动 morph 时才以中心为轴放大并做边缘 clamp；
-    // 静止/切槽时保持 P3 的 baseLeft + dragOffset，STANDARD/OFF 的指示器运动完全不变。
-    val indicatorTargetLeft = if (isUltra && morphProgress > 0.01f) {
-        morphIndicatorLeft(
-            baseLeftPx = baseLeft,
-            dragOffsetPx = dragOffset,
-            slotWidthPx = slotWidthPx,
-            indicatorWidthPx = currentIndicatorWidth,
-            dockWidthPx = dockWidthPx,
-            paddingPx = dockPaddingPx,
-        )
-    } else {
-        baseLeft + dragOffset
-    }
-
+    // 水平位置始终是 baseLeft + dragOffset；morph 的横向放大由 graphicsLayer 以中心为轴完成。
     val indicatorLeft by animateFloatAsState(
-        targetValue = indicatorTargetLeft,
-        // 拖动中指示器直接跟手，松手恢复弹簧吸附。
+        targetValue = baseLeft + dragOffset,
         animationSpec = if (dragging) {
             snap()
         } else {
@@ -211,22 +184,35 @@ fun PrismDock(
     val topHighlightAlpha = if (colors.isDark) 0.12f else 0.20f
     val midHighlightAlpha = if (colors.isDark) 0.03f else 0.04f
 
-    val indicatorShape = RoundedCornerShape(percent = 50)
-    val indicatorWidthDp = with(density) { currentIndicatorWidth.toDp() }
-    val indicatorHeightDp = with(density) { currentIndicatorHeight.toDp() }
+    // 56dp 布局 → 76dp 视觉高度：scaleY 只放大绘制，不改变测量。
+    val morphScaleX = 1f + (PrismDockSpec.MorphWidthScale - 1f) * morphProgress
+    val morphScaleY = 1f +
+        ((PrismDockSpec.MorphHeight / PrismDockSpec.IndicatorHeight) - 1f) * morphProgress
 
-    // Backdrop 只在 ULTRA 拖动中、拿到图层背景且 API 33+ 时启用；
-    // 其余情况（含静止态）完全走原来的 Box，保证 STANDARD/OFF 与 P3 一致。
-    val activeBackdrop = backdrop
+    val indicatorShape = RoundedCornerShape(percent = 50)
+    val indicatorWidthDp = with(density) { animatedSlotWidth.toDp() }
+
+    // 三段背景：页面 + 玻璃胶囊 + 隐藏的 Tab 行；指示器透明后能透出 Tab 内容。
+    val glassBackdrop = rememberLayerBackdrop()
+    val tabsBackdrop = rememberLayerBackdrop()
+    val pageBackdropOrEmpty = remember(pageBackdrop) {
+        pageBackdrop ?: emptyBackdrop()
+    }
+    val combinedBackdrop = rememberCombinedBackdrop(
+        pageBackdropOrEmpty,
+        glassBackdrop,
+        tabsBackdrop,
+    )
+
     val showLens = isUltra &&
-        activeBackdrop != null &&
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        pageBackdrop != null &&
+        isRuntimeShaderSupported() &&
         morphProgress > 0.01f
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(PrismDockSpec.LayoutHeight)
+            .height(PrismDockSpec.Height)
             .onSizeChanged { dockWidthPx = it.width.toFloat() }
             // 只观察按下/抬起，不消费事件；放在 Initial pass 保证先于子项点击拿到手势。
             .pointerInput(Unit) {
@@ -296,12 +282,13 @@ fun PrismDock(
                 scaleY = dockScale
             },
     ) {
-        // 1) 玻璃胶囊：64dp，底部对齐，指示器不在其 clip 内。
+        // 1) 玻璃胶囊：64dp；layerBackdrop 先记录玻璃绘制，再交给指示器合成。
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(PrismDockSpec.Height)
                 .align(Alignment.BottomCenter)
+                .layerBackdrop(glassBackdrop)
                 .prismGlassSurface(
                     quality = quality,
                     hazeState = hazeState,
@@ -340,24 +327,88 @@ fun PrismDock(
             }
         }
 
-        // 2) 指示器层：与玻璃同级、在 clip 外；底边固定，morph 时只向上生长。
-        //    首帧宽度为 0 时不渲染，测量完成后再按槽宽落位。
-        if (currentIndicatorWidth > 0f && dockWidthPx > 0f) {
-            if (showLens && activeBackdrop != null) {
+        // 2) 隐藏的 Tab 采样层：与真实内容同布局，alpha=0 不显示、无交互，
+        //    只把图标/文字录进 tabsBackdrop，供指示器 lens 采样。
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(PrismDockSpec.Height)
+                .align(Alignment.BottomCenter)
+                .padding(PrismDockSpec.InnerPadding)
+                .clearAndSetSemantics { }
+                .alpha(0f)
+                .layerBackdrop(tabsBackdrop),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items.forEachIndexed { index, item ->
+                val selected = index == selectedIndex
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier.height(32.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(PrismDockSpec.IconSize)
+                                    .graphicsLayer {
+                                        val scale = if (selected) {
+                                            motion.dockSelectedIconScale
+                                        } else {
+                                            1f
+                                        }
+                                        scaleX = scale
+                                        scaleY = scale
+                                    },
+                                tint = if (selected) colors.primary else colors.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = stringResource(item.labelRes),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (selected) colors.onSurface else colors.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3) 指示器层：布局始终 56dp，morph 只走 graphicsLayer 的中心缩放。
+        if (animatedSlotWidth > 0f && dockWidthPx > 0f) {
+            if (showLens) {
                 Box(
                     modifier = Modifier
                         .offset {
                             IntOffset(
                                 x = indicatorLeft.roundToInt(),
-                                y = indicatorTop.roundToInt(),
+                                y = indicatorTopPx.roundToInt(),
                             )
                         }
                         .width(indicatorWidthDp)
-                        .height(indicatorHeightDp)
+                        .height(PrismDockSpec.IndicatorHeight)
+                        .graphicsLayer {
+                            transformOrigin = TransformOrigin.Center
+                            scaleX = morphScaleX
+                            scaleY = morphScaleY
+                        }
                         .drawBackdrop(
-                            backdrop = activeBackdrop,
+                            backdrop = combinedBackdrop,
                             shape = { indicatorShape },
                             effects = {
+                                blur(radius = 1.5.dp.toPx())
                                 lens(
                                     refractionHeight = refractionHeightPx * morphProgress,
                                     refractionAmount = refractionAmountPx * morphProgress,
@@ -367,7 +418,13 @@ fun PrismDock(
                             },
                             highlight = null,
                             shadow = null,
-                            innerShadow = null,
+                            innerShadow = {
+                                InnerShadow(
+                                    radius = 8.dp * morphProgress,
+                                    color = Color.Black,
+                                    alpha = 0.25f * morphProgress,
+                                )
+                            },
                             onDrawSurface = {
                                 drawRect(morphTint)
                                 drawRect(Color.Black.copy(alpha = 0.03f * morphProgress))
@@ -387,11 +444,16 @@ fun PrismDock(
                         .offset {
                             IntOffset(
                                 x = indicatorLeft.roundToInt(),
-                                y = indicatorTop.roundToInt(),
+                                y = indicatorTopPx.roundToInt(),
                             )
                         }
                         .width(indicatorWidthDp)
-                        .height(indicatorHeightDp)
+                        .height(PrismDockSpec.IndicatorHeight)
+                        .graphicsLayer {
+                            transformOrigin = TransformOrigin.Center
+                            scaleX = morphScaleX
+                            scaleY = morphScaleY
+                        }
                         .clip(indicatorShape)
                         .background(morphTint)
                         .then(
@@ -404,12 +466,27 @@ fun PrismDock(
                             } else {
                                 Modifier
                             },
-                        ),
+                        )
+                        // API < 33：没有 lens/blur，但保留几何 morph、底色淡出与近似的内阴影。
+                        .drawWithContent {
+                            drawContent()
+                            if (isUltra && morphProgress > 0.01f) {
+                                drawRoundRect(
+                                    brush = Brush.verticalGradient(
+                                        0f to Color.Black.copy(alpha = 0.10f * morphProgress),
+                                        0.5f to Color.Transparent,
+                                        1f to Color.Black.copy(alpha = 0.06f * morphProgress),
+                                    ),
+                                    style = Stroke(width = 8.dp.toPx() * morphProgress),
+                                    cornerRadius = CornerRadius(size.height / 2f),
+                                )
+                            }
+                        },
                 )
             }
         }
 
-        // 3) 内容层：最后绘制，保证指示器不会盖住图标与文字。
+        // 4) 内容层：最后绘制，保证指示器不会盖住图标与文字。
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -471,3 +548,7 @@ fun PrismDock(
         }
     }
 }
+
+/** API 33 起才有可稳定使用的 RuntimeShader；低版本只走几何/淡出降级。 */
+private fun isRuntimeShaderSupported(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU

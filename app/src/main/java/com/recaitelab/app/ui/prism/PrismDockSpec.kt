@@ -8,13 +8,10 @@ import androidx.compose.ui.unit.dp
  * P2 起 Dock 使用固定的 64dp 胶囊高度与 56dp 指示器；材质参数只作用于 ULTRA 档，
  * STANDARD/OFF 继续走 [GlassStyle] 的默认值，避免历史参数漂移。
  *
- * P3.5 起根容器抬高到 [LayoutHeight]，给拖动时 76dp 的 morph 指示器留出上方 headroom；
- * 玻璃胶囊仍为 [Height]，视觉位置不变。
+ * P4 起 morph 只通过 graphicsLayer 围绕胶囊中心缩放，根容器高度恒为 [Height]，
+ * 不再需要额外的布局 headroom。
  */
 object PrismDockSpec {
-
-    /** Dock 根容器高度：玻璃胶囊 64dp + 拖动 morph 指示器的 16dp headroom。 */
-    val LayoutHeight = 80.dp
 
     /** Dock 胶囊高度，指示器静止时垂直居中于其中。 */
     val Height = 64.dp
@@ -34,10 +31,10 @@ object PrismDockSpec {
     /** 指示器相对胶囊上下边缘的内缩量。 */
     val IndicatorInset = 4.dp
 
-    /** 拖动 morph 时指示器目标高度：底边不动，只向上生长。 */
+    /** morph 时指示器的视觉目标高度：只放大绘制，布局仍为 [IndicatorHeight]。 */
     val MorphHeight = 76.dp
 
-    /** 拖动 morph 时指示器最大宽度相对槽宽的倍数。 */
+    /** morph 时指示器最大宽度相对槽宽的倍数（graphicsLayer scaleX）。 */
     const val MorphWidthScale = 1.04f
 
     /** 图标边长；外层另有 32dp 的图标盒以稳定文字基线。 */

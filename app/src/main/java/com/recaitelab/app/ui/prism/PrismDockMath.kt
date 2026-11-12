@@ -8,7 +8,7 @@ import kotlin.math.floor
  * [slotWidth] / [slotIndexAt] 自 P1 起由单测覆盖；P3 起 UI 也直接复用，
  * 拖动、RTL 与边界 clamp 全部走这里的函数，保证可测。
  *
- * P3.5 起拖动 morph 的高度/宽度/顶边/水平位置也集中在这里，progress 统一 clamp 到 0..1。
+ * P4 起指示器 morph 改为 graphicsLayer 缩放，布局几何仍只有槽宽与水平位置。
  */
 
 /**
@@ -85,64 +85,4 @@ fun slotIndexAt(
     val mirroredX = if (rtl) dockWidthPx - xPx else xPx
     val slot = floor((mirroredX - paddingPx) / widthPx).toInt()
     return slot.coerceIn(0, count - 1)
-}
-
-/**
- * 拖动 morph 后的指示器高度。
- *
- * [progress] 统一 clamp 到 0..1；progress = 0 返回静止高度，progress = 1 返回 morph 目标高度。
- */
-fun morphIndicatorHeight(
-    baseHeightPx: Float,
-    morphHeightPx: Float,
-    progress: Float,
-): Float {
-    if (baseHeightPx <= 0f && morphHeightPx <= 0f) return 0f
-    val clampedProgress = progress.coerceIn(0f, 1f)
-    return baseHeightPx + (morphHeightPx - baseHeightPx) * clampedProgress
-}
-
-/**
- * 拖动 morph 后的指示器宽度：槽宽按 [scale] 放大，[progress] clamp 到 0..1。
- *
- * 槽宽非法（未测量/空列表）时返回 0，调用方据此跳过绘制。
- */
-fun morphIndicatorWidth(
-    slotWidthPx: Float,
-    scale: Float,
-    progress: Float,
-): Float {
-    if (slotWidthPx <= 0f) return 0f
-    val clampedProgress = progress.coerceIn(0f, 1f)
-    return slotWidthPx * (1f + (scale - 1f) * clampedProgress)
-}
-
-/**
- * 指示器顶边的 y 坐标：底边固定在 `layoutHeight - inset`，高度增加时向上生长。
- *
- * 极端小容器下不小于 0，避免负偏移把指示器画到 Dock 外部。
- */
-fun morphIndicatorTop(
-    layoutHeightPx: Float,
-    insetPx: Float,
-    indicatorHeightPx: Float,
-): Float = (layoutHeightPx - insetPx - indicatorHeightPx).coerceAtLeast(0f)
-
-/**
- * 指示器水平位置：以槽位中心为轴放大，再按 Dock 内边距与宽度做边缘保护。
- *
- * 未测量、宽度非法或可用空间小于内边距时退回未 clamp 的中心位置，绝不抛异常。
- */
-fun morphIndicatorLeft(
-    baseLeftPx: Float,
-    dragOffsetPx: Float,
-    slotWidthPx: Float,
-    indicatorWidthPx: Float,
-    dockWidthPx: Float,
-    paddingPx: Float,
-): Float {
-    val centeredLeft = baseLeftPx + dragOffsetPx - (indicatorWidthPx - slotWidthPx) / 2f
-    if (dockWidthPx <= 0f || indicatorWidthPx <= 0f || slotWidthPx <= 0f) return centeredLeft
-    val maxLeft = dockWidthPx - paddingPx - indicatorWidthPx
-    return if (maxLeft < paddingPx) centeredLeft else centeredLeft.coerceIn(paddingPx, maxLeft)
 }
