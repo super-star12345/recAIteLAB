@@ -64,6 +64,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.recaitelab.app.di.AppContainer
 import com.recaitelab.app.domain.model.AppDesignSystem
 import com.recaitelab.app.domain.model.AppearanceMode
@@ -160,6 +162,8 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
         val glassQuality = LocalGlassQuality.current
         // ULTRA 也需要真实背景模糊；只有 OFF 关闭模糊、走不透明降级。
         val hazeState = rememberHazeState(blurEnabled = glassQuality != GlassQuality.OFF)
+        // 只给 Dock 指示器的 lens 提供背景采样；Haze 仍负责玻璃条的模糊。
+        val dockBackdrop = rememberLayerBackdrop()
         val navBarBottom = WindowInsets.navigationBars
             .asPaddingValues()
             .calculateBottomPadding()
@@ -191,7 +195,8 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
                     startDestination = ChatRoute,
                     modifier = Modifier
                         .fillMaxSize()
-                        .hazeSource(hazeState),
+                        .hazeSource(hazeState)
+                        .layerBackdrop(dockBackdrop),
                 enterTransition = { prismEnter() },
                 exitTransition = { prismExit() },
                 popEnterTransition = { prismPopEnter() },
@@ -217,6 +222,7 @@ private fun AppRoot(settingsViewModel: SettingsViewModel) {
                     selectedIndex = selectedIndex,
                     quality = glassQuality,
                     hazeState = hazeState,
+                    backdrop = dockBackdrop,
                     onSelect = { index -> navController.navigateToTab(topLevelTabs[index].route) },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)

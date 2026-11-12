@@ -151,6 +151,8 @@ dependencies {
     implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.46.0")
     // T3 标准玻璃：唯一的背景模糊依赖（Android/Compose Multiplatform 通用）
     implementation("dev.chrisbanes.haze:haze:1.7.3")
+    // P3.5 ULTRA Dock 指示器：Backdrop 的 RuntimeShader lens（仅 API 33+ 生效）
+    implementation("io.github.kyant0:backdrop:1.0.6")
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

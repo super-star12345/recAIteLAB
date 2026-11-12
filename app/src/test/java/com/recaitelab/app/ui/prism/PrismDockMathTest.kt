@@ -139,6 +139,54 @@ class PrismDockMathTest {
         assertEquals(0f, dragOffsetRange(0, count, 0f, rtl = false).endInclusive, DELTA)
     }
 
+    @Test
+    fun morphIndicatorHeight_interpolatesAndClampsProgress() {
+        val base = 224f
+        val morph = 304f
+        assertEquals(base, morphIndicatorHeight(base, morph, 0f), DELTA)
+        assertEquals(morph, morphIndicatorHeight(base, morph, 1f), DELTA)
+        assertEquals(264f, morphIndicatorHeight(base, morph, 0.5f), DELTA)
+        assertEquals(base, morphIndicatorHeight(base, morph, -0.5f), DELTA)
+        assertEquals(morph, morphIndicatorHeight(base, morph, 1.5f), DELTA)
+    }
+
+    @Test
+    fun morphIndicatorWidth_scalesSlotByProgress() {
+        assertEquals(96f, morphIndicatorWidth(96f, 1.04f, 0f), DELTA)
+        assertEquals(99.84f, morphIndicatorWidth(96f, 1.04f, 1f), DELTA)
+        assertEquals(97.92f, morphIndicatorWidth(96f, 1.04f, 0.5f), DELTA)
+        assertEquals(0f, morphIndicatorWidth(0f, 1.04f, 1f), DELTA)
+    }
+
+    @Test
+    fun morphIndicatorTop_isBottomAnchored() {
+        // 80dp 根（320px）、4dp inset（16px）：56dp 指示器 top=80，76dp 指示器 top=0。
+        assertEquals(80f, morphIndicatorTop(320f, 16f, 224f), DELTA)
+        assertEquals(0f, morphIndicatorTop(320f, 16f, 304f), DELTA)
+        // 小容器不应出现负偏移。
+        assertEquals(0f, morphIndicatorTop(100f, 16f, 304f), DELTA)
+    }
+
+    @Test
+    fun morphIndicatorLeft_centersAndClampsAtDockEdges() {
+        // 400px Dock、8px padding、4 个 96px 槽；1.04× 后槽宽 99.84px。
+        // 首槽放大后中心在 6.08，但左边界受 padding 限制，实际贴到 8。
+        assertEquals(8f, morphIndicatorLeft(8f, 0f, 96f, 99.84f, 400f, 8f), DELTA)
+        assertEquals(102.08f, morphIndicatorLeft(104f, 0f, 96f, 99.84f, 400f, 8f), DELTA)
+        // 末槽放大后顶到右边界：400 - 8 - 99.84 = 292.16。
+        assertEquals(292.16f, morphIndicatorLeft(296f, 0f, 96f, 99.84f, 400f, 8f), DELTA)
+        // 拖动偏移参与中心计算。
+        assertEquals(198.08f, morphIndicatorLeft(104f, 96f, 96f, 99.84f, 400f, 8f), DELTA)
+    }
+
+    @Test
+    fun morphMath_defensiveOnInvalidInput() {
+        assertEquals(0f, morphIndicatorHeight(0f, 0f, 1f), DELTA)
+        // 未测量时不 clamp，直接返回中心位置。
+        assertEquals(50f, morphIndicatorLeft(50f, 0f, 0f, 0f, 0f, 8f), DELTA)
+        assertEquals(-4f, morphIndicatorLeft(0f, 0f, 96f, 104f, 0f, 8f), DELTA)
+    }
+
     private companion object {
         const val DELTA = 0.001f
     }
