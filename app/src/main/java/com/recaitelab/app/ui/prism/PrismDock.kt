@@ -54,13 +54,13 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.emptyBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.shadow.InnerShadow
 import com.recaitelab.app.domain.model.GlassQuality
@@ -80,13 +80,13 @@ data class PrismDockItem(
  * 调用方负责外层的对齐与外边距（`align(BottomCenter)` + 左右 20dp + 底部导航栏间距），
  * 本组件只补宽度与固定高度。
  *
- * 层次：64dp 玻璃胶囊（底部对齐）→ 隐藏的 Tab 采样层 → 指示器层（在玻璃 clip 外）→ 内容层。
+ * 层次：64dp 玻璃胶囊（底部对齐）→ 隐藏的 Tab 采样层 → 内容层 → 指示器层（zIndex 2）。
  * 指示器的布局始终是 56dp，P4 起 morph 只通过 graphicsLayer 的 scaleX/scaleY 完成，
  * 因此不会再向上凸出 16dp，而是以 64dp 玻璃中心为轴上下对称放大。
  *
  * P4 的 morph 跟 [dockPressed] 走：按下即可见，不需要拖动；STANDARD/OFF 永远不 morph。
  * 指示器采样三段合成的背景：页面（NavHost）、玻璃胶囊、隐藏的 Tab 行，
- * 因此透明后仍能看到 Tab 图标/文字，并叠加很轻的 blur 与 API 33+ 的 lens 折射。
+ * 因此透明后仍能看到 Tab 图标/文字，并叠加 API 33+ 的 lens 折射。
  */
 @Composable
 fun PrismDock(
@@ -336,7 +336,8 @@ fun PrismDock(
                 .align(Alignment.BottomCenter)
                 .padding(PrismDockSpec.InnerPadding)
                 .clearAndSetSemantics { }
-                .alpha(0f)
+                // 诊断用 0.01f：确认隐藏行到底有没有被 lens 采样；验证后应恢复 0f。
+                .alpha(0.01f)
                 .layerBackdrop(tabsBackdrop),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
@@ -399,8 +400,12 @@ fun PrismDock(
                         }
                         .width(indicatorWidthDp)
                         .height(PrismDockSpec.IndicatorHeight)
+                        // 指示器画在真实内容之上，避免 lens 采样与真实 Tab 叠成双重影像。
+                        .zIndex(2f)
                         .graphicsLayer {
                             transformOrigin = TransformOrigin.Center
+                            // 按压时整体上抬 12dp，morph 回落后归位。
+                            translationY = -12.dp.toPx() * morphProgress
                             scaleX = morphScaleX
                             scaleY = morphScaleY
                         }
@@ -408,7 +413,6 @@ fun PrismDock(
                             backdrop = combinedBackdrop,
                             shape = { indicatorShape },
                             effects = {
-                                blur(radius = 1.5.dp.toPx())
                                 lens(
                                     refractionHeight = refractionHeightPx * morphProgress,
                                     refractionAmount = refractionAmountPx * morphProgress,
@@ -449,8 +453,12 @@ fun PrismDock(
                         }
                         .width(indicatorWidthDp)
                         .height(PrismDockSpec.IndicatorHeight)
+                        // 指示器画在真实内容之上，避免 lens 采样与真实 Tab 叠成双重影像。
+                        .zIndex(2f)
                         .graphicsLayer {
                             transformOrigin = TransformOrigin.Center
+                            // 按压时整体上抬 12dp，morph 回落后归位。
+                            translationY = -12.dp.toPx() * morphProgress
                             scaleX = morphScaleX
                             scaleY = morphScaleY
                         }
@@ -467,7 +475,7 @@ fun PrismDock(
                                 Modifier
                             },
                         )
-                        // API < 33：没有 lens/blur，但保留几何 morph、底色淡出与近似的内阴影。
+                        // API < 33：没有 lens，但保留几何 morph、底色淡出与近似的内阴影。
                         .drawWithContent {
                             drawContent()
                             if (isUltra && morphProgress > 0.01f) {
@@ -486,7 +494,7 @@ fun PrismDock(
             }
         }
 
-        // 4) 内容层：最后绘制，保证指示器不会盖住图标与文字。
+        // 4) 内容层：声明在最后，但指示器有 zIndex(2f)，按压时会盖在内容之上。
         Row(
             modifier = Modifier
                 .fillMaxWidth()

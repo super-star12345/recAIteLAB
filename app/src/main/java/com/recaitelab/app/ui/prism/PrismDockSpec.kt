@@ -49,6 +49,6 @@ object PrismDockSpec {
     /** ULTRA 深色 tint 不透明度。 */
     const val DarkTintAlpha = 0.50f
 
-    /** ULTRA 选中指示器的 tint 强度。 */
-    const val IndicatorTintAlpha = 0.55f
+    /** ULTRA 选中指示器的静止底色强度；按压时随 morphProgress 淡出到 0。 */
+    const val IndicatorTintAlpha = 0.20f
 }
